@@ -33,7 +33,7 @@ use warnings;
 		enc	=> 'HTTP_ACCEPT_ENCODING',	# Character encoding
 		dnt	=> 'HTTP_DNT',			# Do not track token
 		addr	=> 'REMOTE_ADDR',		# IP address
-		qs	=> 'QUERY_STRING'		# Any querystrings
+		qs	=> 'QUERY_STRING',		# Any querystrings
 		clen	=> 'CONTENT_LENGTH'		# Content length
 	);
 	
@@ -83,16 +83,28 @@ use warnings;
 	# Do new page things
 	sub new_page {
 		my ( $method, $path, %tags ) = @_;
-		%tags{'robots'} = 'noindex, nofollow';
+		%tags = ( %tags, (
+			robots	=> 'noindex, nofollow'
+		) );
 		
-		my $title	= input( 'title', 'text', '' );
+		# Title attributes
 		my %tattr	= (
+			placeholder	=> 'Title',
+			'length'	=> '60',
+			maxlength	=> '80'
+		);
+		
+		# Body attributes
+		my %battr	= (
 			placeholder	=> 'Content'
 		);
-		my $out		= text( 'body', '', 6, 60, %tattr );
 		
-		
-		my $ht		= "<p>$title</p><p>$out</p>";
+		my $textarea	= text( 'body', '', 6, 60, %battr );
+		my $title	= input( 'title', 'text', '', %tattr );
+		my $submit	= input( 'newpage', 'submit', 'Post' );
+		my $ht		= p( $title ) . 
+					p( $textarea ) . 
+					p( $submit );
 		
 		html( 'New page', $ht, %tags );
 	}
@@ -108,7 +120,9 @@ use warnings;
 	# Do page editing things
 	sub edit_page {
 		my ( $method, $path, %tags ) = @_;
-		%tags{'robots'} = 'noindex, nofollow';
+		%tags = ( %tags, (
+			robots	=> 'noindex, nofollow'
+		) );
 		
 		html( 'Editing', 'Edit existing page', %tags );
 	}
@@ -116,7 +130,9 @@ use warnings;
 	# Do logging in things
 	sub login {
 		my ( $method, $path, %tags ) = @_;
-		%tags{'robots'} = 'noindex, nofollow';
+		%tags = ( %tags, (
+			robots	=> 'noindex, nofollow'
+		) );
 		
 		given ( $method ) {
 			when( 'post' ) {
@@ -139,7 +155,9 @@ use warnings;
 	# Do password changing things
 	sub change_pass {
 		my ( $method, $path, %tags ) = @_;
-		%tags{'robots'} = 'noindex, nofollow';
+		%tags = ( %tags, (
+			robots	=> 'noindex, nofollow'
+		) );
 		
 	}
 	
@@ -154,6 +172,9 @@ use warnings;
 	# Do not found things
 	sub not_found {
 		my ( $method, $path, %tags ) = @_;
+		%tags = ( %tags, (
+			robots	=> 'noindex, nofollow'
+		) );
 		
 		html( '404 Not found', "Couldn't find the page you're looking for", %tags );
 	}
@@ -378,7 +399,6 @@ use warnings;
 			cols	=> $cols
 		);
 		my $at = attr( %attr ); # Append any attributes
-		
 		my $out = "<textarea name=\"$name\" rows=\"$rows\" " 
 				. "cols=\"$cols\"$at>";
 		
@@ -416,7 +436,7 @@ use warnings;
 			$out .= " $k=\"$attr{$k}\"";
 		}
 		
-		return ( $out );
+		return $out;
 	}
 	
 	
@@ -451,7 +471,7 @@ use warnings;
 			}
 			
 			# Form shouldn't have been used
-			default { exit( 0 ); }
+			default { exit ( 0 ); }
 		}
 		
 		return parse_form( @sent );
@@ -467,7 +487,7 @@ use warnings;
 			my ( $name, $value ) = split( /=/, $data );
 			$value =~ tr/+/ /;
 			$value =~ s/%(..)/pack("C", hex($1))/eg;
-			%parsed{$name} = $value;
+			%parsed = ( %parsed, ( $name => $value ) );
 		}
 		
 		return %parsed;
