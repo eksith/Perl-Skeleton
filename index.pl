@@ -34,6 +34,7 @@ use warnings;
 		dnt	=> 'HTTP_DNT',			# Do not track token
 		addr	=> 'REMOTE_ADDR',		# IP address
 		qs	=> 'QUERY_STRING'		# Any querystrings
+		clen	=> 'CONTENT_LENGTH'		# Content length
 	);
 	
 	# Application routes (add/edit as needed)
@@ -82,6 +83,7 @@ use warnings;
 	# Do new page things
 	sub new_page {
 		my ( $method, $path, %tags ) = @_;
+		%tags{'robots'} = 'noindex, nofollow';
 		
 		my $title	= input( 'title', 'text', '' );
 		my %tattr	= (
@@ -106,6 +108,7 @@ use warnings;
 	# Do page editing things
 	sub edit_page {
 		my ( $method, $path, %tags ) = @_;
+		%tags{'robots'} = 'noindex, nofollow';
 		
 		html( 'Editing', 'Edit existing page', %tags );
 	}
@@ -113,6 +116,7 @@ use warnings;
 	# Do logging in things
 	sub login {
 		my ( $method, $path, %tags ) = @_;
+		%tags{'robots'} = 'noindex, nofollow';
 		
 		given ( $method ) {
 			when( 'post' ) {
@@ -132,12 +136,28 @@ use warnings;
 		
 	}
 	
+	# Do password changing things
+	sub change_pass {
+		my ( $method, $path, %tags ) = @_;
+		%tags{'robots'} = 'noindex, nofollow';
+		
+	}
+	
+	# Do saving new password things
+	sub save_pass {
+		my ( $method, $path, %tags ) = @_;
+		
+		# After changing the password, redirect
+		redir( '/' );
+	}
+	
 	# Do not found things
 	sub not_found {
 		my ( $method, $path, %tags ) = @_;
 		
-		html( '404 Not found', "Couldn't find the page you're looking for$path", %tags );
+		html( '404 Not found', "Couldn't find the page you're looking for", %tags );
 	}
+	
 	
 	
 	####		Let's begin		####
@@ -164,6 +184,9 @@ use warnings;
 			}
 		}
 		
+		# Filter request method
+		$method	= filter_method( $method );
+		
 		# Generator meta tag gets added first
 		# Comment this part out if you don't want it shown
 		my %tags = (
@@ -183,6 +206,7 @@ use warnings;
 			
 			# If we found this route has a handler
 			if ( $path =~  s/^$route$//i ) {
+				
 				# Call designated handler
 				$routes{$route}->( $method, $path, %tags );
 				
@@ -269,21 +293,60 @@ use warnings;
 		ending();
 	}
 	
+	# Create heading tag
+	sub h {
+		my ( $value, $n, %attr ) = @_;
+		return tag( "h$n", $value, 0, 1, %attr );
+	}
+	
+	# Paragraph tag
+	sub p {
+		my ( $value, %attr ) = @_;
+		return tag( 'p', $value, 0, 1, %attr );
+	}
+	
+	# Anchor tag
+	sub a {
+		my ( $value, $title, %attr ) = @_;
+		if ( !defined( $title ) ) {
+			$title = '';
+		}
+		my %at = ( %attr, (
+			href	=> $value,
+			title	=> $title
+		) );
+		return tag( 'a', undef, 1, 0, %at );
+	}
+	
+	# Image tag
+	sub img {
+		my ( $value, $alt, %attr ) = @_;
+		if ( !defined( $alt ) ) {
+			$alt = '';
+		}
+		my %at = ( %attr, (
+			src	=> $value,
+			alt	=> $alt
+		) );
+		
+		return tag( 'img', undef, 1, 0, %at );
+	}
+	
 	# Create a generic HTML tag
 	sub tag {
 		my ( $name, $value, $close, $br, %attr ) = @_;
 		my $out = "";
 		
-		# Fix empty values
-		if ( !defined( $value ) ) {
-			$value = '';
-		}
-		
 		if ( $close ) { # Self closing
-			my %sat = ( %attr, (
-				value => $value
-			) );
-			my $at = attr( %sat );
+			
+			# Merge the value with attributes, if it's there
+			if ( defined( $value ) ) {
+				my %attr = ( %attr, (
+					value => $value
+				) );
+			}
+			
+			my $at = attr( %attr );
 			$out = "<$name$at/>";
 			
 		} else {
@@ -361,6 +424,54 @@ use warnings;
 	
 	####		Helpers			####
 	
+	# Form data
+	sub form {
+		my @sent;
+		
+		given ( $method ) {
+			when( 'get' ) {
+				# Check for empty query string
+				if ( !defined( %opts{'qs'} ) ) {
+					return undef;
+				}
+		
+				# Get sent values from the query string
+				@sent = split( /&/, %opts{'qs'} );
+			}
+			
+			when( 'post' ) {
+				# Check for empty content length
+				if ( !defined( %opts{'clen'} ) ) {
+					return undef;
+				}
+				
+				my $raw;
+				read( STDIN, $raw, %opts{'clen'} );
+				@sent = split( /&/, $raw );
+			}
+			
+			# Form shouldn't have been used
+			default { exit( 0 ); }
+		}
+		
+		return parse_form( @sent );
+	}
+	
+	# Process form data
+	# http://www.tutorialspoint.com/perl/perl_cgi.htm
+	sub parse_form {
+		my @sent = shift;
+		my %parsed;
+		
+		foreach my $data ( @sent ) {
+			my ( $name, $value ) = split( /=/, $data );
+			$value =~ tr/+/ /;
+			$value =~ s/%(..)/pack("C", hex($1))/eg;
+			%parsed{$name} = $value;
+		}
+		
+		return %parsed;
+	}
 	
 	# Filter the request method to a small white list
 	sub filter_method {
@@ -457,5 +568,5 @@ use warnings;
 	
 	####		Templates		####
 	# TODO
+	
 }
-
