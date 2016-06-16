@@ -50,7 +50,8 @@ use warnings;
 		'/save'		=> \&save_page,		# Save a page
 		
 		'/login'	=> \&login,		# User login
-		'/logout'	=> \&logout		# User logout
+		'/logout'	=> \&logout,		# User logout
+		'/changepass'	=> \&change_pass	# Change login password
 	);
 	
 	
@@ -130,20 +131,33 @@ use warnings;
 	# Do logging in things
 	sub login {
 		my ( $method, $path, %tags ) = @_;
+		
+		# If data was sent...
+		if ( $method eq 'post' ) {
+			# Process login (TODO)
+			my @data = form();
+			
+			redir( '/' );
+		}
+	
+		# Everything else,  display login form
 		%tags = ( %tags, (
 			robots	=> 'noindex, nofollow'
 		) );
 		
-		given ( $method ) {
-			when( 'post' ) {
-				
-			}
-			
-			# Everything else display login form
-			default {
-				html( 'Login', 'Login user', %tags );
-			}
-		}
+		my $user	= input( 'username', 'text', '', 
+					( placeholder=> 'Username' ) 
+				);
+		my $pass	= input( 'password', 'password', '', 
+					( placeholder=> 'Password' ) 
+				);
+		my $submit	= input( 'login', 'submit', 'Login' );
+		my $ht		= h( 'User login', 1 ) . 
+					p( $user ) . 
+					p( $pass ) . 
+					p( $submit );
+					
+		html( 'Login user', $ht, %tags );
 	}
 	
 	# Do logging out things
@@ -155,9 +169,32 @@ use warnings;
 	# Do password changing things
 	sub change_pass {
 		my ( $method, $path, %tags ) = @_;
+		
+		# Data was sent
+		if ( $method eq 'post' ) {
+			# Process change password (TODO)
+			my @data = form();
+			
+			redir( '/' );
+		}
+		
 		%tags = ( %tags, (
 			robots	=> 'noindex, nofollow'
 		) );
+		
+		my $oldpass	= input( 'oldpassword', 'password', '', 
+					( placeholder=> 'Old Password' ) 
+				);
+		my $newpass	= input( 'oldpassword', 'password', '', 
+					( placeholder=> 'New Password' ) 
+				);
+		my $submit	= input( 'changepass', 'submit', 'Change' );
+		my $ht		= h( 'Change login password', 1 ) . 
+					p( $oldpass ) . 
+					p( $newpass ) . 
+					p( $submit );
+					
+		html( 'Change password', $ht, %tags );
 		
 	}
 	
