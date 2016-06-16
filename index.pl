@@ -34,7 +34,8 @@ use warnings;
 		dnt	=> 'HTTP_DNT',			# Do not track token
 		addr	=> 'REMOTE_ADDR',		# IP address
 		qs	=> 'QUERY_STRING',		# Any querystrings
-		clen	=> 'CONTENT_LENGTH'		# Content length
+		clen	=> 'CONTENT_LENGTH',		# Content length
+		cookie	=> 'HTTP_COOKIE'		# User cookie
 	);
 	
 	# Application routes (add/edit as needed)
@@ -88,24 +89,23 @@ use warnings;
 			robots	=> 'noindex, nofollow'
 		) );
 		
-		# Title attributes
-		my %tattr	= (
-			placeholder	=> 'Title',
-			'length'	=> '60',
-			maxlength	=> '80'
-		);
-		
-		# Body attributes
-		my %battr	= (
-			placeholder	=> 'Content'
-		);
-		
-		my $textarea	= text( 'body', '', 6, 60, %battr );
-		my $title	= input( 'title', 'text', '', %tattr );
+		my $title	= input( 'title', 'text', '', (
+					placeholder	=> 'Title',
+					'length'	=> '60',
+					maxlength	=> '80'
+				) );
+		my $body	= text( 'body', '', 6, 60, (
+					placeholder	=> 'Content'
+				) );
+		my $pubdate	= input( 'pubdate', 'text', '', (
+					placeholder	=> 'Pubdate',
+					'length'	=> '60',
+					maxlength	=> '40'
+				) );
 		my $submit	= input( 'newpage', 'submit', 'Post' );
 		my $ht		= p( $title ) . 
-					p( $textarea ) . 
-					p( $submit );
+					p( $body ) . 
+					p( "$pubdate $submit" );
 		
 		html( 'New page', $ht, %tags );
 	}
@@ -135,7 +135,7 @@ use warnings;
 		# If data was sent...
 		if ( $method eq 'post' ) {
 			# Process login (TODO)
-			my @data = form();
+			my @data = form_data( 'post' );
 			
 			redir( '/' );
 		}
@@ -173,7 +173,7 @@ use warnings;
 		# Data was sent
 		if ( $method eq 'post' ) {
 			# Process change password (TODO)
-			my @data = form();
+			my @data = form_data( 'post' );
 			
 			redir( '/' );
 		}
@@ -221,7 +221,6 @@ use warnings;
 	####		Let's begin		####
 	
 	start( $uri, $scheme, $method );
-	
 	
 	
 	
@@ -482,7 +481,8 @@ use warnings;
 	####		Helpers			####
 	
 	# Form data
-	sub form {
+	sub form_data {
+		my $method = shift;
 		my @sent;
 		
 		given ( $method ) {
@@ -516,6 +516,7 @@ use warnings;
 	
 	# Process form data
 	# http://www.tutorialspoint.com/perl/perl_cgi.htm
+	# http://stackoverflow.com/a/17216260
 	sub parse_form {
 		my @sent = shift;
 		my %parsed;
@@ -524,7 +525,9 @@ use warnings;
 			my ( $name, $value ) = split( /=/, $data );
 			$value =~ tr/+/ /;
 			$value =~ s/%(..)/pack("C", hex($1))/eg;
-			%parsed = ( %parsed, ( $name => $value ) );
+			
+			# Take care of possible duplicate values
+			push @{%parsed{$name}, $value};
 		}
 		
 		return %parsed;
@@ -621,6 +624,7 @@ use warnings;
 		print "Location: $url\n\n";
 		exit ( 0 );
 	}
+	
 	
 	
 	####		Templates		####
