@@ -1,0 +1,16 @@
+AddHandler cgi-script .pl .cgi
+Options +ExecCGI +FollowSymLinks
+
+<FilesMatch "\.(htaccess|htpasswd|ini|log|sh|inc|bak|sqlite|sqlite3|conf|data|post)$">
+Order Allow,Deny
+Deny from all
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.pl$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.pl [L]
+</IfModule>
