@@ -47,23 +47,26 @@ use warnings;
 	# https://stackoverflow.com/questions/1915616/how-can-i-elegantly-call-a-perl-subroutine-whose-name-is-held-in-a-variable#1915709
 	my %routes = (
 		'/'			=> \&home,		# Home route
-		'/(\d+)'		=> \&home,		# Home pagination
-		
-		'/post/(\w+)'		=> \&page,		# Read a page
+		'/(?<page>\d+)'		=> \&home,		# Home pagination
 		
 		# Browse the archives
-		'/archive'						=> \&archive,
-		'/archive/(?<year>\d{4})'				=> \&archive,
-		'/archive/(?<year>\d{4})/(?<month>\d{2})'		=> \&archive,
-		'/archive/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})'	=> \&archive,
+		'/posts'								=> \&archive,
+		'/posts/(?<year>\d{4})'							=> \&archive,
+		'/posts/(?<year>\d{4})/(?<month>\d{2})'					=> \&archive,
+		'/posts/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})'			=> \&archive,
 		
-		'/new'			=> \&new_page,		# Create a page
-		'/edit/(\w+)'		=> \&edit_page,		# Edit a page
-		'/save'			=> \&save_page,		# Save a page
+		# Read a page
+		'/posts/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})/(?<slug>\w+)'	=> \&page,
 		
-		'/login'		=> \&login,		# User login
-		'/logout'		=> \&logout,		# User logout
-		'/changepass'		=> \&change_pass	# Change login password
+		# Edit a page
+		'/edit/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})/(?<slug>\w+)'	=> \&edit_page,
+		
+		'/new'				=> \&new_page,		# Create a page
+		'/save'				=> \&save_page,		# Save a page
+		
+		'/login'			=> \&login,		# User login
+		'/logout'			=> \&logout,		# User logout
+		'/changepass'			=> \&change_pass	# Change login password
 	);
 	
 	
