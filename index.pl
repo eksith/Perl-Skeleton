@@ -18,6 +18,8 @@ use warnings;
 	
 	my $ssize	= 16;				# Password salt size
 	my $robots	= "index, follow";		# Robots meta tag
+	my $maxclen	= 50000;			# Maximum content length (bytes)
+	my $rblock	= 1024;				# Read block size
 	
 	# Common vars (always sent)
 	my ( $uri, $scheme, $method ) = (
@@ -135,7 +137,7 @@ use warnings;
 		# If data was sent...
 		if ( $method eq 'post' ) {
 			# Process login (TODO)
-			my @data = form_data( 'post' );
+			my %data = form_data( 'post' );
 			
 			redir( '/' );
 		}
@@ -173,7 +175,7 @@ use warnings;
 		# Data was sent
 		if ( $method eq 'post' ) {
 			# Process change password (TODO)
-			my @data = form_data( 'post' );
+			my %data = form_data( 'post' );
 			
 			redir( '/' );
 		}
@@ -480,6 +482,34 @@ use warnings;
 	
 	####		Helpers			####
 	
+	
+	# Raw data sent by the user
+	# http://www.perlmonks.org/?node_id=135323
+	sub raw_content {
+		
+		# Require content length
+		if ( !%opts{'clen'} ) {
+			%opts = ( %opts, ( clen => $maxclen ) );
+		}
+		
+		if ( %opts{'clen'} > $maxclen ) {
+			return '';
+		}
+		
+		my $data = '';
+		my $raw;
+		my $len;
+		while( read( STDIN, $raw, $rblock ) ) {
+			if ( $len > %opts{'clen'} || $len > $maxclen ) {
+				exit ( 0 );
+			}
+			$data	.= $raw;
+			$len	+= 1024;
+		}
+		
+		return $data;
+	}
+	
 	# Form data
 	sub form_data {
 		my $method = shift;
@@ -502,9 +532,9 @@ use warnings;
 					return undef;
 				}
 				
-				my $raw;
-				read( STDIN, $raw, %opts{'clen'} );
-				@sent = split( /&/, $raw );
+				# Get sent data from raw content
+				my $raw	= raw_content();
+				@sent	= split( /&/, $raw );
 			}
 			
 			# Form shouldn't have been used
