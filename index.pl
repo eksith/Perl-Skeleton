@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -T
 
 # Perl Skeleton is a simple web page starter for basic sites
 # Includes:
@@ -517,14 +517,28 @@ use warnings;
 	# Process form data
 	# http://www.tutorialspoint.com/perl/perl_cgi.htm
 	# http://stackoverflow.com/a/17216260
+	# https://stackoverflow.com/questions/28970888/how-to-remove-empty-characters-from-string-perl
 	sub parse_form {
 		my @sent = shift;
 		my %parsed;
 		
 		foreach my $data ( @sent ) {
 			my ( $name, $value ) = split( /=/, $data );
-			$value =~ tr/+/ /;
-			$value =~ s/%(..)/pack("C", hex($1))/eg;
+			
+			# Strip non-printable chars
+			$name	=~ s/[[:^print:]\s]//g;
+			
+			# Strip null bytes
+			$value	=~ s/\x00$//;
+			
+			# Replace '+' with space
+			$value	=~ tr/+/ /;
+			
+			# Hex decode
+			$value	=~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
+			
+			# Strip non-printable chars except spaces
+			$value	=~ s/[[:^print:]]//g;
 			
 			# Take care of possible duplicate values
 			push @{%parsed{$name}, $value};
