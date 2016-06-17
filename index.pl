@@ -28,6 +28,9 @@ use warnings;
 		$ENV{'REQUEST_METHOD'}			# GET, POST etc...
 	);
 	
+	# Filter request method
+	$method	= filter_method( $method );
+	
 	# Common options (usually sent, sometimes broken)
 	my %opts = (
 		lang	=> 'HTTP_ACCEPT_LANGUAGE',	# Preferred language
@@ -117,38 +120,48 @@ use warnings;
 			robots	=> 'noindex, nofollow'
 		);
 		
+		# Page title
 		my $title	= input( 'title', 'text', '', (
 					placeholder	=> 'Title',
-					'length'	=> '60',
+					size		=> '60',
 					maxlength	=> '80'
 				) );
+		
+		# Body text
 		my $body	= text( 'body', '', 6, 60, (
 					placeholder	=> 'Content'
 				) );
+		
+		# Publish date
 		my $pubdate	= input( 'pubdate', 'text', '', (
 					placeholder	=> 'Pubdate',
-					'length'	=> '60',
+					size		=> '40',
 					maxlength	=> '40'
 				) );
+		
+		# Post button
 		my $submit	= input( 'newpage', 'submit', 'Post' );
-		my $ht		= p( $title ) . 
+		
+		# Input fields
+		my $fields	= p( $title ) . 
 					p( $body ) . 
 					p( "$pubdate $submit" );
 		
-		html( 'New page', $ht, %mtags );
-	}
-	
-	# Do save page things
-	sub save_page {
-		my ( $method, $path, %params ) = @_;
+		# HTML Form
+		my $form	= tag( 'form', $fields, 0, 1, (
+					action => '/save',
+					method => 'post'
+				) );
 		
-		# After saving the page, redirect
-		redir( '/' );
+		my $ht		= h( 'New page', 1 ) . $form;
+		
+		html( 'New page', $ht, %mtags );
 	}
 	
 	# Do page editing things
 	sub edit_page {
 		my ( $method, $path, %params ) = @_;
+		
 		my %mtags = (
 			robots	=> 'noindex, nofollow'
 		);
@@ -156,12 +169,33 @@ use warnings;
 		html( 'Editing', 'Edit existing page', %mtags );
 	}
 	
+	# Do save page things
+	sub save_page {
+		my ( $method, $path, %params ) = @_;
+		
+		
+		# Post data was sent
+		if ( $method eq "post" ) {
+			# Test
+			print "Content-type: text/html\n\n";
+			print $method;
+			my %data = form_data( 'post' );
+			foreach my $k ( keys %data ) {
+				print $data{$k}; 
+			}
+			exit( 0 );
+			
+		}
+		# After saving the page, redirect
+		redir( '/' );
+	}
+	
 	# Do logging in things
 	sub login {
 		my ( $method, $path, %params ) = @_;
 		
-		# If data was sent...
-		if ( $method eq 'post' ) {
+		# Login info was sent
+		if ( $method eq "post" ) {
 			# Process login (TODO)
 			my %data = form_data( 'post' );
 			
@@ -269,9 +303,6 @@ use warnings;
 			}
 		}
 		
-		# Filter request method
-		$method	= filter_method( $method );
-		
 		# Call router
 		router( $uri );
 	}
@@ -279,7 +310,7 @@ use warnings;
 	# URL path router
 	sub router {
 		my ( $path ) = @_;
-		my @matches;
+		my $matches;
 		my %params;
 		
 		# Iterate through given routes
@@ -548,6 +579,7 @@ use warnings;
 	# Form data
 	sub form_data {
 		my $method = shift;
+		my $raw;
 		my @sent;
 		
 		given ( $method ) {
@@ -558,7 +590,7 @@ use warnings;
 				}
 		
 				# Get sent values from the query string
-				@sent = split( /&/, $opts{'qs'} );
+				$raw	= $opts{'qs'};
 			}
 			
 			when( 'post' ) {
@@ -568,15 +600,13 @@ use warnings;
 				}
 				
 				# Get sent data from raw content
-				my $raw	= raw_content();
-				@sent	= split( /&/, $raw );
+				$raw	= raw_content();
 			}
 			
 			# Form shouldn't have been used
 			default { exit ( 0 ); }
 		}
-		
-		return parse_form( @sent );
+		return parse_form( $raw );
 	}
 	
 	# Process form data
@@ -584,7 +614,8 @@ use warnings;
 	# http://stackoverflow.com/a/17216260
 	# https://stackoverflow.com/questions/28970888/how-to-remove-empty-characters-from-string-perl
 	sub parse_form {
-		my @sent = shift;
+		my $raw		= shift;
+		my @sent	= split( /&/, $raw );
 		my %parsed;
 		
 		foreach my $data ( @sent ) {
@@ -606,7 +637,15 @@ use warnings;
 			$value	=~ s/[[:^print:]]//g;
 			
 			# Take care of possible duplicate values
-			push @{%parsed{$name}, $value};
+			if ( exists( $parsed{$name} ) ) {
+				my $size = keys $parsed{$name};
+				$parsed{$name} = (
+					$parsed{$name},
+					( $size+1 => $value )
+				);
+			} else {
+				$parsed{$name} = ( 0 => $value );
+			}
 		}
 		
 		return %parsed;
