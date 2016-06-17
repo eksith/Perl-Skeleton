@@ -15,7 +15,7 @@ use warnings;
 	my $app		= 'Perl Skeleton';		# App name
 	my $version	= '0.1';			# App version
 	
-	
+	my $store	= 'data';			# Storage folder
 	my $ssize	= 16;				# Password salt size
 	my $robots	= "index, follow";		# Robots meta tag
 	my $maxclen	= 50000;			# Maximum content length (bytes)
@@ -103,10 +103,10 @@ use warnings;
 	# Do archive things
 	sub archive {
 		my ( $method, $path, %params ) = @_;
-		my $out = '';
-		my %mtags = (
-			description	=> 'Content archive'
-		);
+		my $out		= '';
+		my %mtags	= (
+					description	=> 'Content archive'
+				);
 		
 		foreach my $p ( keys %params ) {
 			$out .= ' '. $params{$p};
@@ -119,9 +119,9 @@ use warnings;
 	sub new_page {
 		my ( $method, $path, %params ) = @_;
 		
-		my %mtags = (
-			robots	=> 'noindex, nofollow'
-		);
+		my %mtags	= (
+					robots	=> 'noindex, nofollow'
+				);
 		
 		# Page title
 		my $title	= input( 'title', 'text', '', (
@@ -137,6 +137,11 @@ use warnings;
 		
 		# Publish date
 		my $pubdate	= input( 'pubdate', 'text', '', (
+					placeholder	=> 'Pubdate',
+					size		=> '40',
+					maxlength	=> '40'
+				) ) . 
+				input( 'pubdate', 'text', '', (
 					placeholder	=> 'Pubdate',
 					size		=> '40',
 					maxlength	=> '40'
@@ -165,9 +170,9 @@ use warnings;
 	sub edit_page {
 		my ( $method, $path, %params ) = @_;
 		
-		my %mtags = (
-			robots	=> 'noindex, nofollow'
-		);
+		my %mtags	= (
+					robots	=> 'noindex, nofollow'
+				);
 		
 		html( 'Editing', 'Edit existing page', %mtags );
 	}
@@ -176,21 +181,21 @@ use warnings;
 	sub save_page {
 		my ( $method, $path, %params ) = @_;
 		
-		
 		# Post data was sent
 		if ( $method eq "post" ) {
-			# Test
 			print "Content-type: text/html\n\n";
 			print $method;
-			my %data = form_data( 'post' );
-			foreach my $k ( keys %data ) {
-				print $data{$k}; 
-			}
-			exit( 0 );
 			
+			my %data	= form_data( 'post' );
+			my $content	= field( 'body', %data );
+			# Test
+			print $content;
+			
+			
+			exit( 0 );
 		}
 		# After saving the page, redirect
-		redir( '/' );
+		#redir( '/' );
 	}
 	
 	# Do logging in things
@@ -206,9 +211,9 @@ use warnings;
 		}
 	
 		# Everything else,  display login form
-		my %mtags = (
-			robots	=> 'noindex, nofollow'
-		);
+		my %mtags	= (
+					robots	=> 'noindex, nofollow'
+				);
 		
 		my $user	= input( 'username', 'text', '', 
 					( placeholder=> 'Username' ) 
@@ -243,9 +248,9 @@ use warnings;
 			redir( '/' );
 		}
 		
-		my %mtags = (
-			robots	=> 'noindex, nofollow'
-		);
+		my %mtags	= (
+					robots	=> 'noindex, nofollow'
+				);
 		
 		my $oldpass	= input( 'oldpassword', 'password', '', 
 					( placeholder=> 'Old Password' ) 
@@ -274,9 +279,9 @@ use warnings;
 	# Do not found things
 	sub not_found {
 		my ( $method, $path ) = @_;
-		my %mtags = (
-			robots	=> 'noindex, nofollow'
-		);
+		my %mtags	= (
+					robots	=> 'noindex, nofollow'
+				);
 		
 		html( '404 Not found', "Couldn't find the page you're looking for", %mtags );
 	}
@@ -314,7 +319,6 @@ use warnings;
 	sub router {
 		my ( $path ) = @_;
 		my $matches;
-		my %params;
 		
 		# Iterate through given routes
 		foreach my $route ( sort keys %routes ) {
@@ -322,7 +326,8 @@ use warnings;
 			# If we found this route has a handler
 			if ( $path =~ s/^$route(\/)?$//i ) {
 				
-				# TODO Pass matches into parameters
+				# Pass matches into parameters
+				my %params = parse_url( $route );
 				
 				# Call designated handler
 				$routes{$route}->( $method, $path, %params );
@@ -334,6 +339,19 @@ use warnings;
 		
 		# Fallback to not found
 		not_found( $method, $path );
+	}
+	
+	# URL parameters
+	sub parse_url {
+		my $route = shift;
+		my $matches;
+		my %params;
+		
+		while ( $matches =~ m/^$route(\/)?$/i ) {
+			# TODO
+		}
+		
+		return %params;
 	}
 	
 	
@@ -609,7 +627,36 @@ use warnings;
 			# Form shouldn't have been used
 			default { exit ( 0 ); }
 		}
+		#return $raw
 		return parse_form( $raw );
+	}
+	
+	# Clean a parameter
+	sub clean_param {
+		my $value = shift;
+			
+		# Strip null bytes
+		$value	=~ s/\x00$//;
+		
+		# Replace '+' with space
+		$value	=~ tr/+/ /;
+		
+		# Hex decode
+		$value	=~ s/%(..)/pack("C", hex($1))/eg;
+		
+		# Strip non-printable chars except spaces
+		$value	=~ s/[[:^print:]]//g;
+		
+		return $value;
+	}
+	
+	# Clean a parameter name
+	sub clean_name {
+		my $value = shift;
+		
+		# Strip non-printable chars
+		$value =~ s/[[:^print:]\s]//g;
+		return $value;
 	}
 	
 	# Process form data
@@ -621,26 +668,17 @@ use warnings;
 		foreach my $data ( @sent ) {
 			my ( $name, $value ) = split( /=/, $data );
 			
-			# Strip non-printable chars
-			$name	=~ s/[[:^print:]\s]//g;
-			
-			# Strip null bytes
-			$value	=~ s/\x00$//;
-			
-			# Replace '+' with space
-			$value	=~ tr/+/ /;
-			
-			# Hex decode
-			$value	=~ s/%(..)/pack("C", hex($1))/eg;
-			
-			# Strip non-printable chars except spaces
-			$value	=~ s/[[:^print:]]//g;
+			# Scrub
+			$name	= clean_name( $name );
+			$value	= clean_param( $value );
 			
 			# Take care of possible duplicate values
 			if ( exists( $parsed{$name} ) ) {
-				my $size = keys $parsed{$name};
+				
 				# Use the size to increment the key
-				$parsed{$name}{$size} = ( %parsed{$name}, ( $size => $value ) );
+				my $size = keys $parsed{$name};
+				$parsed{$name}->{$size} = 
+					( %parsed{$name}, ( $size => $value ) );
 			} else {
 				# No duplicates yet, use zero as the key
 				$parsed{$name} = ( { 0 => $value } );
@@ -650,9 +688,48 @@ use warnings;
 		return %parsed;
 	}
 	
+	# Form field from processed data
+	sub field {
+		my ( $field, %data, $i ) = @_;
+		
+		# First index for this field if none were specified
+		if ( !defined( $i ) ) {
+			$i = 0;
+		}
+		if ( exists( $data{$field} ) ) {
+			# Specific index only?
+			if ( exists( $data{$field}->{$i} ) ) {
+				return $data{$field}->{$i};
+			
+			# All fields?
+			} elsif ( $i == -1 ) {
+				return $data{$field};
+			}
+			
+		}
+		
+		# Field wasn't sent
+		return undef;
+	}
+	
 	# Get cookie data sent by the user
 	sub cookie_data {
-		# TODO
+		my $name	= shift;
+		my @data	= raw_cookie();
+		foreach my $cookie ( @data ) {
+			# TODO
+		}
+	}
+	
+	# Get raw sent cookie 
+	sub raw_cookie{
+		my $cookie = %opts{'cookie'};
+		if ( !$cookie ) {
+			return '';
+		}
+		
+		my @data = split( "[;,] ?", $cookie );
+		return @data;
 	}
 	
 	# Set cookie data by name
