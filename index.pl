@@ -43,18 +43,24 @@ use warnings;
 	# Application routes (add/edit as needed)
 	# https://stackoverflow.com/questions/1915616/how-can-i-elegantly-call-a-perl-subroutine-whose-name-is-held-in-a-variable#1915709
 	my %routes = (
-		'/'		=> \&home,		# Home route
-		'/(\d+)'	=> \&home,		# Home pagination
+		'/'			=> \&home,		# Home route
+		'/(\d+)'		=> \&home,		# Home pagination
 		
-		'/post/(\w+)'	=> \&page,		# Read a page
+		'/post/(\w+)'		=> \&page,		# Read a page
 		
-		'/new'		=> \&new_page,		# Create a page
-		'/edit/(\w+)'	=> \&edit_page,		# Edit a page
-		'/save'		=> \&save_page,		# Save a page
+		# Browse the archives
+		'/archive'						=> \&archive,
+		'/archive/(?<year>\d{4})'				=> \&archive,
+		'/archive/(?<year>\d{4})/(?<month>\d{2})'		=> \&archive,
+		'/archive/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})'	=> \&archive,
 		
-		'/login'	=> \&login,		# User login
-		'/logout'	=> \&logout,		# User logout
-		'/changepass'	=> \&change_pass	# Change login password
+		'/new'			=> \&new_page,		# Create a page
+		'/edit/(\w+)'		=> \&edit_page,		# Edit a page
+		'/save'			=> \&save_page,		# Save a page
+		
+		'/login'		=> \&login,		# User login
+		'/logout'		=> \&logout,		# User logout
+		'/changepass'		=> \&change_pass	# Change login password
 	);
 	
 	
@@ -64,32 +70,52 @@ use warnings;
 	
 	# Do homey things
 	sub home {
-		my ( $method, $path, %tags ) = @_;
+		my ( $method, $path, %params ) = @_;
 		
-		# Merge default meta tags with our own
-		%tags = ( %tags, (
+		# Meta tags
+		my %mtags = (
 			description	=> 'Achtung Baby',
 			author		=> 'Bono'
-		) );
+		);
 		
 		# Render a basic HTML page
-		html( 'Home', 'Welcome ' . $path, %tags );
+		html( 'Home', 'Welcome ' . $path, %mtags );
 	}
 	
 	# Do post reading things
 	sub page {
-		my ( $method, $path, %tags ) = @_;
+		my ( $method, $path, %params ) = @_;
+		my %mtags = (
+			description	=> 'Page description',
+			author		=> 'Page author'
+		);
 		
 		# Reading a page
-		html( 'This is a test page', 'Hello World' . $path, %tags );
+		html( 'This is a test page', 'Hello World' . $path, %mtags );
+	}
+	
+	# Do archive things
+	sub archive {
+		my ( $method, $path, %params ) = @_;
+		my $out = '';
+		my %mtags = (
+			description	=> 'Content archive'
+		);
+		
+		foreach my $p ( keys %params ) {
+			$out .= ' '. $params{$p};
+		}
+		
+		html( 'Archive', 'This is an archive page' . $out, %mtags );
 	}
 	
 	# Do new page things
 	sub new_page {
-		my ( $method, $path, %tags ) = @_;
-		%tags = ( %tags, (
+		my ( $method, $path, %params ) = @_;
+		
+		my %mtags = (
 			robots	=> 'noindex, nofollow'
-		) );
+		);
 		
 		my $title	= input( 'title', 'text', '', (
 					placeholder	=> 'Title',
@@ -109,12 +135,12 @@ use warnings;
 					p( $body ) . 
 					p( "$pubdate $submit" );
 		
-		html( 'New page', $ht, %tags );
+		html( 'New page', $ht, %mtags );
 	}
 	
 	# Do save page things
 	sub save_page {
-		my ( $method, $path, %tags ) = @_;
+		my ( $method, $path, %params ) = @_;
 		
 		# After saving the page, redirect
 		redir( '/' );
@@ -122,17 +148,17 @@ use warnings;
 	
 	# Do page editing things
 	sub edit_page {
-		my ( $method, $path, %tags ) = @_;
-		%tags = ( %tags, (
+		my ( $method, $path, %params ) = @_;
+		my %mtags = (
 			robots	=> 'noindex, nofollow'
-		) );
+		);
 		
-		html( 'Editing', 'Edit existing page', %tags );
+		html( 'Editing', 'Edit existing page', %mtags );
 	}
 	
 	# Do logging in things
 	sub login {
-		my ( $method, $path, %tags ) = @_;
+		my ( $method, $path, %params ) = @_;
 		
 		# If data was sent...
 		if ( $method eq 'post' ) {
@@ -143,9 +169,9 @@ use warnings;
 		}
 	
 		# Everything else,  display login form
-		%tags = ( %tags, (
+		my %mtags = (
 			robots	=> 'noindex, nofollow'
-		) );
+		);
 		
 		my $user	= input( 'username', 'text', '', 
 					( placeholder=> 'Username' ) 
@@ -159,18 +185,18 @@ use warnings;
 					p( $pass ) . 
 					p( $submit );
 					
-		html( 'Login user', $ht, %tags );
+		html( 'Login user', $ht, %mtags );
 	}
 	
 	# Do logging out things
 	sub logout {
-		my ( $method, $path, %tags ) = @_;
+		my ( $method, $path, %params ) = @_;
 		
 	}
 	
 	# Do password changing things
 	sub change_pass {
-		my ( $method, $path, %tags ) = @_;
+		my ( $method, $path, %params ) = @_;
 		
 		# Data was sent
 		if ( $method eq 'post' ) {
@@ -180,9 +206,9 @@ use warnings;
 			redir( '/' );
 		}
 		
-		%tags = ( %tags, (
+		my %mtags = (
 			robots	=> 'noindex, nofollow'
-		) );
+		);
 		
 		my $oldpass	= input( 'oldpassword', 'password', '', 
 					( placeholder=> 'Old Password' ) 
@@ -196,13 +222,13 @@ use warnings;
 					p( $newpass ) . 
 					p( $submit );
 					
-		html( 'Change password', $ht, %tags );
+		html( 'Change password', $ht, %mtags );
 		
 	}
 	
 	# Do saving new password things
 	sub save_pass {
-		my ( $method, $path, %tags ) = @_;
+		my ( $method, $path, %params ) = @_;
 		
 		# After changing the password, redirect
 		redir( '/' );
@@ -210,12 +236,12 @@ use warnings;
 	
 	# Do not found things
 	sub not_found {
-		my ( $method, $path, %tags ) = @_;
-		%tags = ( %tags, (
+		my ( $method, $path ) = @_;
+		my %mtags = (
 			robots	=> 'noindex, nofollow'
-		) );
+		);
 		
-		html( '404 Not found', "Couldn't find the page you're looking for", %tags );
+		html( '404 Not found', "Couldn't find the page you're looking for", %mtags );
 	}
 	
 	
@@ -246,28 +272,26 @@ use warnings;
 		# Filter request method
 		$method	= filter_method( $method );
 		
-		# Generator meta tag gets added first
-		# Comment this part out if you don't want it shown
-		my %tags = (
-			generator	=> "$app $version"
-		);
-		
 		# Call router
-		router( $uri, %tags );
+		router( $uri );
 	}
 	
 	# URL path router
 	sub router {
-		my ( $path, %tags ) = @_;
+		my ( $path ) = @_;
+		my @matches;
+		my %params;
 		
 		# Iterate through given routes
-		foreach my $route ( keys %routes ) {
+		foreach my $route ( sort keys %routes ) {
 			
 			# If we found this route has a handler
-			if ( $path =~  s/^$route$//i ) {
+			if ( $path =~ s/^$route(\/)?$//i ) {
+				
+				# TODO Pass matches into parameters
 				
 				# Call designated handler
-				$routes{$route}->( $method, $path, %tags );
+				$routes{$route}->( $method, $path, %params );
 				
 				# Break out of search
 				return;
@@ -275,7 +299,7 @@ use warnings;
 		}
 		
 		# Fallback to not found
-		not_found( $method, $path, %tags );
+		not_found( $method, $path );
 	}
 	
 	
@@ -340,8 +364,16 @@ use warnings;
 		
 		# Merge any sent meta tags with default ones
 		my %mtags = ( (
+			
+			# Mobile compatibility
 			viewport	=> 'width=device-width, initial-scale=1',
+			
+			# Show application name (comment this out to hide)
+			generator	=> "$app $version",
+			
+			# Robot follow/index
 			robots		=> $robots
+			
 		), %sent_meta );
 		
 		# Put together the HTML page
@@ -488,11 +520,11 @@ use warnings;
 	sub raw_content {
 		
 		# Require content length
-		if ( !%opts{'clen'} ) {
+		if ( !$opts{'clen'} ) {
 			%opts = ( %opts, ( clen => $maxclen ) );
 		}
 		
-		if ( %opts{'clen'} > $maxclen ) {
+		if ( $opts{'clen'} > $maxclen ) {
 			return '';
 		}
 		
@@ -500,7 +532,10 @@ use warnings;
 		my $raw;
 		my $len;
 		while( read( STDIN, $raw, $rblock ) ) {
-			if ( $len > %opts{'clen'} || $len > $maxclen ) {
+			if ( 
+				$len > $opts{'clen'} || 
+				( $len + $rblock ) > $maxclen 
+			) {
 				exit ( 0 );
 			}
 			$data	.= $raw;
@@ -518,17 +553,17 @@ use warnings;
 		given ( $method ) {
 			when( 'get' ) {
 				# Check for empty query string
-				if ( !defined( %opts{'qs'} ) ) {
+				if ( !defined( $opts{'qs'} ) ) {
 					return undef;
 				}
 		
 				# Get sent values from the query string
-				@sent = split( /&/, %opts{'qs'} );
+				@sent = split( /&/, $opts{'qs'} );
 			}
 			
 			when( 'post' ) {
 				# Check for empty content length
-				if ( !defined( %opts{'clen'} ) ) {
+				if ( !defined( $opts{'clen'} ) ) {
 					return undef;
 				}
 				
@@ -573,6 +608,32 @@ use warnings;
 			# Take care of possible duplicate values
 			push @{%parsed{$name}, $value};
 		}
+		
+		return %parsed;
+	}
+	
+	# Get cookie data sent by the user
+	sub cookie_data {
+		# TODO
+	}
+	
+	# Set cookie data by name
+	sub set_cookie {
+		my ( $name, %data  ) = @_;
+		
+		# TODO
+	}
+	
+	# Send cookie data
+	sub send_cookie {
+		# TODO
+	}
+	
+	sub parse_cookie {
+		my @sent = shift;
+		my %parsed;
+		
+		# TODO
 		
 		return %parsed;
 	}
@@ -642,9 +703,7 @@ use warnings;
 			or die "Can't open random device";
 		
 		sysread $in, my $rand, 4 * $len;
-		unpack( 'H*', $rand );
-		return $rand;
-		
+		return unpack( 'H*', $rand );
 	}
 	
 	# Random data on Windows
