@@ -535,7 +535,7 @@ use warnings;
 			$value	=~ tr/+/ /;
 			
 			# Hex decode
-			$value	=~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
+			$value	=~ s/%(..)/pack("C", hex($1))/eg;
 			
 			# Strip non-printable chars except spaces
 			$value	=~ s/[[:^print:]]//g;
