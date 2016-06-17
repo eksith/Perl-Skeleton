@@ -610,13 +610,10 @@ use warnings;
 	}
 	
 	# Process form data
-	# http://www.tutorialspoint.com/perl/perl_cgi.htm
-	# http://stackoverflow.com/a/17216260
-	# https://stackoverflow.com/questions/28970888/how-to-remove-empty-characters-from-string-perl
 	sub parse_form {
 		my $raw		= shift;
 		my @sent	= split( /&/, $raw );
-		my %parsed;
+		my %parsed	= ();
 		
 		foreach my $data ( @sent ) {
 			my ( $name, $value ) = split( /=/, $data );
@@ -639,12 +636,11 @@ use warnings;
 			# Take care of possible duplicate values
 			if ( exists( $parsed{$name} ) ) {
 				my $size = keys $parsed{$name};
-				$parsed{$name} = (
-					$parsed{$name},
-					( $size+1 => $value )
-				);
+				# Use the size to increment the key
+				$parsed{$name}{$size} = ( %parsed{$name}, ( $size => $value ) );
 			} else {
-				$parsed{$name} = ( 0 => $value );
+				# No duplicates yet, use zero as the key
+				$parsed{$name} = ( { 0 => $value } );
 			}
 		}
 		
