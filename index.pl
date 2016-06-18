@@ -70,6 +70,20 @@ package PerlSkeleton;
 		'/changepass'			=> \&change_pass	# Change login password
 	);
 	
+	# Common meta tags
+	my %common_meta = (
+		
+		# Mobile compatibility
+		viewport	=> 'width=device-width, initial-scale=1',
+		
+		# Show application name (comment this out to hide)
+		generator	=> "$app $version",
+		
+		# Robot follow/index
+		robots		=> $robots
+			
+	);
+	
 	
 	
 	
@@ -370,40 +384,41 @@ package PerlSkeleton;
 	# Print header tag, title, and meta tags
 	sub heading {
 		my ( $title, %tags ) = @_;
-		print "<head>\n<meta charset=\"utf-8\" />\n";
+		my $html = "<head>\n<meta charset=\"utf-8\" />\n";
 		
 		# Header content
-		title( $title );
-		meta_tags( %tags );
+		$html .= title( $title );
+		$html .= meta_tags( %tags );
 		
-		print "</head>\n";
+		return $html . "</head>\n";
 	}
 	
 	# Print page title
 	sub title {
 		my $title = shift;
-		print tag( 'title', "$title", 0, 1 );
+		return tag( 'title', "$title", 0, 1 );
 	}
 	
 	# Print meta tags
 	sub meta_tags {
 		my ( %tags ) = @_;
-		
+		my $t = '';
 		foreach my $k ( sort keys %tags ) {
-			meta_tag( $k, $tags{$k} );
+			$t .= meta_tag( $k, $tags{$k} );
 		}
+		return $t;
 	}
 	
 	# Print individual meta tag
 	sub meta_tag {
 		my ( $name, $value ) = @_;
-		print "<meta name=\"$name\" content=\"$value\" />\n";
+		return "<meta name=\"$name\" content=\"$value\" />\n";
 	}
 	
 	# Content page body
 	sub body {
 		my $body	= shift;
-		print tag( 'body', "\n$body\n", 0, 1 );
+		return tag( 'body', "\n$body\n", 0, 1 );
 	}
 	
 	# Close HTML and end execution
@@ -417,23 +432,12 @@ package PerlSkeleton;
 		my ( $title, $body, %sent_meta ) = @_;
 		
 		# Merge any sent meta tags with default ones
-		my %mtags = ( (
-			
-			# Mobile compatibility
-			viewport	=> 'width=device-width, initial-scale=1',
-			
-			# Show application name (comment this out to hide)
-			generator	=> "$app $version",
-			
-			# Robot follow/index
-			robots		=> $robots
-			
-		), %sent_meta );
+		my %mtags = ( $common_meta, $sent_meta );
 		
 		# Put together the HTML page
 		preamble();
-		heading( $title, %mtags );
-		body( $body );
+		print heading( $title, %mtags );
+		print body( $body );
 		
 		ending();
 	}
