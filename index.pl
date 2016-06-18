@@ -36,14 +36,14 @@ package PerlSkeleton;
 	
 	# Common options (usually sent, sometimes broken)
 	my %opts = (
-		lang	=> 'HTTP_ACCEPT_LANGUAGE',	# Preferred language
-		ua	=> 'HTTP_USER_AGENT',		# User agent string
-		enc	=> 'HTTP_ACCEPT_ENCODING',	# Character encoding
-		dnt	=> 'HTTP_DNT',			# Do not track token
-		addr	=> 'REMOTE_ADDR',		# IP address
-		qs	=> 'QUERY_STRING',		# Any querystrings
-		clen	=> 'CONTENT_LENGTH',		# Content length
-		cookie	=> 'HTTP_COOKIE'		# User cookie
+		'lang'		=> 'HTTP_ACCEPT_LANGUAGE',	# Preferred language
+		'ua'		=> 'HTTP_USER_AGENT',		# User agent string
+		'enc'		=> 'HTTP_ACCEPT_ENCODING',	# Character encoding
+		'dnt'		=> 'HTTP_DNT',			# Do not track token
+		'addr'		=> 'REMOTE_ADDR',		# IP address
+		'qs'		=> 'QUERY_STRING',		# Any querystrings
+		'clen'		=> 'CONTENT_LENGTH',		# Content length
+		'cookie'	=> 'HTTP_COOKIE'		# User cookie
 	);
 	
 	# Application routes (add/edit as needed)
@@ -108,7 +108,6 @@ package PerlSkeleton;
 			'body'		=> '<p>Hello world</p>',
 			'meta'		=> meta_tags( %mtags )
 		);
-		
 		
 		# Render a basic HTML page
 		render( 'index', %template );
@@ -299,6 +298,7 @@ package PerlSkeleton;
 				robots	=> 'noindex, nofollow'
 			) 
 		);
+		
 		my %template	= (
 			'title'		=> 'Change password',
 			'heading'	=> "Change your password",
@@ -327,7 +327,7 @@ package PerlSkeleton;
 		
 		# TODO Find page
 		
-		# Build login page
+		# Build 404 page
 		my %template	= (
 			'title'		=> '404 Not found',
 			'heading'	=> "Couldn't find the page you're looking for",
