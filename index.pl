@@ -9,7 +9,7 @@
 use v5.20;						# Perl version
 use strict;
 use warnings;
-
+package PerlSkeleton;
 {
 	# Base variables
 	my $app		= 'Perl Skeleton';		# App name
