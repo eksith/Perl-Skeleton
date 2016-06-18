@@ -17,6 +17,8 @@ package PerlSkeleton;
 	
 	my $store	= 'data';			# Storage folder
 	my $templates	= 'templates';			# Templates directory
+	my $theme	= 'default';			# Template name
+	
 	my $ssize	= 16;				# Password salt size
 	my $robots	= "index, follow";		# Robots meta tag
 	my $maxclen	= 50000;			# Maximum content length (bytes)
@@ -85,8 +87,6 @@ package PerlSkeleton;
 	);
 	
 	
-	
-	
 	####		Page routes (per above)	####
 	
 	# Do homey things
@@ -94,9 +94,11 @@ package PerlSkeleton;
 		my ( $method, $path, %params ) = @_;
 		
 		# Meta tags
-		my %mtags = (
-			description	=> 'Achtung Baby',
-			author		=> 'Bono'
+		my %mtags = ( 
+			%common_meta, (
+				description	=> 'Achtung Baby',
+				author		=> 'Bono'
+			) 
 		);
 		
 		# Render a basic HTML page
@@ -119,9 +121,13 @@ package PerlSkeleton;
 	sub archive {
 		my ( $method, $path, %params ) = @_;
 		my $out		= '';
-		my %mtags	= (
-					description	=> 'Content archive'
-				);
+		
+		# Override description
+		my %mtags = ( 
+			%common_meta, (
+				description	=> 'Content archive'
+			) 
+		);
 		
 		foreach my $p ( keys %params ) {
 			$out .= ' '. $params{$p};
@@ -134,62 +140,50 @@ package PerlSkeleton;
 	sub new_page {
 		my ( $method, $path, %params ) = @_;
 		
-		my %mtags	= (
-					robots	=> 'noindex, nofollow'
-				);
 		
-		# Page title
-		my $title	= input( 'title', 'text', '', (
-					placeholder	=> 'Title',
-					size		=> '60',
-					maxlength	=> '80'
-				) );
+		# Override robots follow
+		my %mtags = ( 
+			%common_meta, (
+				robots	=> 'noindex, nofollow'
+			) 
+		);
 		
-		# Body text
-		my $body	= text( 'body', '', 6, 60, (
-					placeholder	=> 'Content'
-				) );
-		
-		# Publish date
-		my $pubdate	= input( 'pubdate', 'text', '', (
-					placeholder	=> 'Pubdate',
-					size		=> '40',
-					maxlength	=> '40'
-				) ) . 
-				input( 'pubdate', 'text', '', (
-					placeholder	=> 'Pubdate',
-					size		=> '40',
-					maxlength	=> '40'
-				) );
-		
-		# Post button
-		my $submit	= input( 'newpage', 'submit', 'Post' );
-		
-		# Input fields
-		my $fields	= p( $title ) . 
-					p( $body ) . 
-					p( "$pubdate $submit" );
-		
-		# HTML Form
-		my $form	= tag( 'form', $fields, 0, 1, (
-					action => '/save',
-					method => 'post'
-				) );
-		
-		my $ht		= h( 'New page', 1 ) . $form;
-		
-		html( 'New page', $ht, %mtags );
+		# Build new page
+		my %template	= (
+			'title'		=> 'Create a new page',
+			'heading'	=> 'Creating a new page',
+			'action'	=> '/save',
+			'meta'		=> meta_tags( %mtags )
+		);
+			
+		render( 'new', %template );
 	}
 	
 	# Do page editing things
 	sub edit_page {
 		my ( $method, $path, %params ) = @_;
 		
-		my %mtags	= (
-					robots	=> 'noindex, nofollow'
-				);
+		# Override robots follow
+		my %mtags = ( 
+			%common_meta, (
+				robots	=> 'noindex, nofollow'
+			) 
+		);
 		
-		html( 'Editing', 'Edit existing page', %mtags );
+		# TODO Find page
+		
+		# Build edit page
+		my %template	= (
+			'title'		=> 'Edit a page',
+			'heading'	=> 'Editing a created page',
+			'page_title'	=> 'A test page',
+			'page_body'	=> 'Test content',
+			'page_pub'	=> '6/18/2016',
+			'action'	=> '/save',
+			'meta'		=> meta_tags( %mtags )
+		);
+			
+		render( 'edit', %template );
 	}
 	
 	# Do save page things
@@ -198,16 +192,21 @@ package PerlSkeleton;
 		
 		# Post data was sent
 		if ( $method eq "post" ) {
-			print "Content-type: text/html\n\n";
-			print $method;
-			
 			my %data	= form_data( 'post' );
-			my $content	= field( 'body', %data );
-			# Test
-			print $content;
 			
+			# Merge any sent meta tags with default ones
+			my %mtags = ( 
+				%common_meta, (
+					robots	=> 'noindex, nofollow'
+				) );
 			
-			exit( 0 );
+			my %template	= (
+				'title'	=> 'Newly saved page',
+				'meta'	=> meta_tags( %common_meta ),
+				'body'	=> field( 'body', %data )
+			);
+			
+			render( 'post', %template );
 		}
 		
 		# After saving the page, redirect
@@ -304,7 +303,28 @@ package PerlSkeleton;
 	
 	
 	
+	####		Internal variables	####
+	
+	# https://doc.perl6.org/language/regexes#Subrules
+	
+	# Routing substitutions for brevity
+	my %routesubs = (
+		# Calendar markers
+		':year'		=> '(?<year>\d{4})',	
+		':month'	=> '(?<month>\d{2})',
+		':day'		=> '(?<day>\d{2})',
+		
+		# Page slug (search engine friendly string)
+		':slug'		=> '(?<slug>\w{1,80})',
+		
+		# Pagination number
+		':page'		=> '(?<page>\d+)'
+	);
+	
+	
+	
 	####		Let's begin		####
+	
 	
 	start( $uri, $scheme, $method );
 	
@@ -358,18 +378,19 @@ package PerlSkeleton;
 	}
 	
 	# URL parameters
+	# Map the named captures into a key => value hash
+	# https://doc.perl6.org/language/regexes#Subrules
 	sub parse_url {
-		my $route = shift;
-		my $matches;
+		my $route	= shift;
 		my %params;
-		
-		while ( $matches =~ m/^$route(\/)?$/i ) {
-			# TODO
-		}
-		
+		# Hacking the match object into a hash
+		# https://doc.perl6.org/language/regexes#Named_captures
+		#if ( $uri ~~ m/^$route(\/)?$/i ) {
+			#my %params = $/.hash;
+			#return %params;
+		#}
 		return %params;
 	}
-	
 	
 	
 	
@@ -432,7 +453,7 @@ package PerlSkeleton;
 		my ( $title, $body, %sent_meta ) = @_;
 		
 		# Merge any sent meta tags with default ones
-		my %mtags = ( $common_meta, $sent_meta );
+		my %mtags = ( %common_meta, %sent_meta );
 		
 		# Put together the HTML page
 		preamble();
@@ -589,6 +610,8 @@ package PerlSkeleton;
 		my $data	= '';
 		my $len		= 0;
 		my $raw;
+		
+		# Read user input in chunks up to maximum content length
 		while( read( STDIN, $raw, $rblock ) ) {
 			if ( 
 				$len > $opts{'clen'} || 
@@ -600,7 +623,7 @@ package PerlSkeleton;
 			$len	+= $rblock;
 		}
 		
-		return $data;
+		return trim( $data );
 	}
 	
 	# Form data
@@ -634,7 +657,7 @@ package PerlSkeleton;
 			# Form shouldn't have been used
 			exit ( 0 );
 		}
-		#return $raw
+		
 		return parse_form( $raw );
 	}
 	
@@ -654,23 +677,24 @@ package PerlSkeleton;
 		# Strip non-printable chars except spaces
 		$value	=~ s/[[:^print:]]//g;
 		
-		return $value;
+		return trim( $value );
 	}
 	
 	# Clean a parameter name
 	sub clean_name {
 		my $value = shift;
 		
-		# Strip non-printable chars
+		# Strip non-printable chars including spaces
 		$value =~ s/[[:^print:]\s]//g;
-		return $value;
+		
+		return trim( $value );
 	}
 	
 	# Process form data
 	sub parse_form {
 		my $raw		= shift;
 		my @sent	= split( /&/, $raw );
-		my %parsed	= ();
+		my %parsed;
 		
 		foreach my $data ( @sent ) {
 			my ( $name, $value ) = split( /=/, $data );
@@ -711,12 +735,13 @@ package PerlSkeleton;
 			} elsif ( $i == -1 ) {
 				return $data{$field};
 			}
-			
 		}
 		
 		# Field wasn't sent
 		return undef;
 	}
+	
+	
 	
 	# Get cookie data sent by the user
 	sub cookie_data {
@@ -729,12 +754,14 @@ package PerlSkeleton;
 	
 	# Get raw sent cookie 
 	sub raw_cookie{
-		my $cookie = %opts{'cookie'};
+		my $cookie = $opts{'cookie'};
 		if ( !$cookie ) {
 			return '';
 		}
 		
 		my @data = split( "[;,] ?", $cookie );
+		chomp( @data );
+		
 		return @data;
 	}
 	
@@ -856,8 +883,6 @@ package PerlSkeleton;
 		return $data;
 	}
 	
-	
-	
 	####		Templates		####
 	
 	# Render a given template
@@ -883,7 +908,9 @@ package PerlSkeleton;
 	# Load a template file
 	sub load_template {
 		my $name	= shift;
-		my $file	= $templates . '/' . $name . '.html';
+		my $file	= $templates . '/' . 
+					$theme . '/' . 
+					$name . '.html';
 		my $tpl		= '';
 		
 		open( my $fh, '<:encoding(UTF-8)', $file )
@@ -897,4 +924,6 @@ package PerlSkeleton;
 		return $tpl;
 	}
 }
+
 __END__
+
