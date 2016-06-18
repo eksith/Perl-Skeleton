@@ -101,20 +101,40 @@ package PerlSkeleton;
 			) 
 		);
 		
+		# Page template variables
+		my %template	= (
+			'title'		=> 'Home',
+			'heading'	=> 'Welcome',
+			'body'		=> '<p>Hello world</p>',
+			'meta'		=> meta_tags( %mtags )
+		);
+		
+		
 		# Render a basic HTML page
-		html( 'Home', 'Welcome ' . $path, %mtags );
+		render( 'index', %template );
 	}
 	
 	# Do post reading things
 	sub page {
 		my ( $method, $path, %params ) = @_;
-		my %mtags = (
-			description	=> 'Page description',
-			author		=> 'Page author'
+		
+		my %mtags = ( 
+			%common_meta, (
+				description	=> 'Page description',
+				author		=> 'Page author'
+			) 
 		);
 		
-		# Reading a page
-		html( 'This is a test page', 'Hello World' . $path, %mtags );
+		# Build reading page
+		my %template	= (
+			'title'		=> 'Reading a page',
+			'heading'	=> 'Viewing a content page',
+			'body'		=> '<p>Hello world</p>',
+			'meta'		=> meta_tags( %mtags )
+		);
+		
+		# Render page read
+		render( 'post', %template );
 	}
 	
 	# Do archive things
@@ -129,17 +149,23 @@ package PerlSkeleton;
 			) 
 		);
 		
+		# TODO find archives by parameters
 		foreach my $p ( keys %params ) {
 			$out .= ' '. $params{$p};
 		}
+		my %template	= (
+			'title'		=> 'Archive',
+			'heading'	=> 'This is an archive page',
+			'body'		=> $out,
+			'meta'		=> meta_tags( %mtags )
+		);
 		
-		html( 'Archive', 'This is an archive page' . $out, %mtags );
+		render( 'archive', %template );
 	}
 	
 	# Do new page things
 	sub new_page {
 		my ( $method, $path, %params ) = @_;
-		
 		
 		# Override robots follow
 		my %mtags = ( 
@@ -155,7 +181,7 @@ package PerlSkeleton;
 			'action'	=> '/save',
 			'meta'		=> meta_tags( %mtags )
 		);
-			
+		
 		render( 'new', %template );
 	}
 	
@@ -194,6 +220,10 @@ package PerlSkeleton;
 		if ( $method eq "post" ) {
 			my %data	= form_data( 'post' );
 			
+			# Test
+			my $content	= field( 'body', %data );
+			my $title	= field( 'title', %data );
+			
 			# Merge any sent meta tags with default ones
 			my %mtags = ( 
 				%common_meta, (
@@ -201,9 +231,10 @@ package PerlSkeleton;
 				) );
 			
 			my %template	= (
-				'title'	=> 'Newly saved page',
-				'meta'	=> meta_tags( %common_meta ),
-				'body'	=> field( 'body', %data )
+				'title'		=> 'Newly saved page',
+				'heading'	=> $title,
+				'meta'		=> meta_tags( %common_meta ),
+				'body'		=> $content
 			);
 			
 			render( 'post', %template );
@@ -226,23 +257,23 @@ package PerlSkeleton;
 		}
 	
 		# Everything else,  display login form
-		my %mtags	= (
-					robots	=> 'noindex, nofollow'
-				);
+		my %mtags = ( 
+			%common_meta, (
+				robots	=> 'noindex, nofollow'
+			) 
+		);
 		
-		my $user	= input( 'username', 'text', '', 
-					( placeholder=> 'Username' ) 
-				);
-		my $pass	= input( 'password', 'password', '', 
-					( placeholder=> 'Password' ) 
-				);
-		my $submit	= input( 'login', 'submit', 'Login' );
-		my $ht		= h( 'User login', 1 ) . 
-					p( $user ) . 
-					p( $pass ) . 
-					p( $submit );
-					
-		html( 'Login user', $ht, %mtags );
+		# TODO Find page
+		
+		# Build login page
+		my %template	= (
+			'title'		=> 'Login',
+			'heading'	=> 'Site access',
+			'action'	=> '/login',
+			'meta'		=> meta_tags( %mtags )
+		);
+		
+		render( 'login', %template );
 	}
 	
 	# Do logging out things
@@ -263,24 +294,18 @@ package PerlSkeleton;
 			redir( '/' );
 		}
 		
-		my %mtags	= (
-					robots	=> 'noindex, nofollow'
-				);
+		my %mtags = ( 
+			%common_meta, (
+				robots	=> 'noindex, nofollow'
+			) 
+		);
+		my %template	= (
+			'title'		=> 'Change password',
+			'heading'	=> "Change your password",
+			'meta'		=> meta_tags( %mtags )
+		);
 		
-		my $oldpass	= input( 'oldpassword', 'password', '', 
-					( placeholder=> 'Old Password' ) 
-				);
-		my $newpass	= input( 'oldpassword', 'password', '', 
-					( placeholder=> 'New Password' ) 
-				);
-		my $submit	= input( 'changepass', 'submit', 'Change' );
-		my $ht		= h( 'Change login password', 1 ) . 
-					p( $oldpass ) . 
-					p( $newpass ) . 
-					p( $submit );
-					
-		html( 'Change password', $ht, %mtags );
-		
+		render( 'changepass', %template );
 	}
 	
 	# Do saving new password things
@@ -294,11 +319,23 @@ package PerlSkeleton;
 	# Do not found things
 	sub not_found {
 		my ( $method, $path ) = @_;
-		my %mtags	= (
-					robots	=> 'noindex, nofollow'
-				);
+		my %mtags = ( 
+			%common_meta, (
+				robots	=> 'noindex, nofollow'
+			) 
+		);
 		
-		html( '404 Not found', "Couldn't find the page you're looking for", %mtags );
+		# TODO Find page
+		
+		# Build login page
+		my %template	= (
+			'title'		=> '404 Not found',
+			'heading'	=> "Couldn't find the page you're looking for",
+			'meta'		=> meta_tags( %mtags ),
+			'body'		=> '<p>Return to <a href="/">index</a>.</p>'
+		);
+		
+		render( '404', %template );
 	}
 	
 	
@@ -396,30 +433,6 @@ package PerlSkeleton;
 	
 	####		HTML Rendering		####
 	
-	# Content type, DOCTYPE, and opening <html> tag pre-render
-	sub preamble {
-		print "Content-type: text/html\n\n";
-		print "<!DOCTYPE html>\n<html>\n";
-	}
-	
-	# Print header tag, title, and meta tags
-	sub heading {
-		my ( $title, %tags ) = @_;
-		my $html = "<head>\n<meta charset=\"utf-8\" />\n";
-		
-		# Header content
-		$html .= title( $title );
-		$html .= meta_tags( %tags );
-		
-		return $html . "</head>\n";
-	}
-	
-	# Print page title
-	sub title {
-		my $title = shift;
-		return tag( 'title', "$title", 0, 1 );
-	}
-	
 	# Print meta tags
 	sub meta_tags {
 		my ( %tags ) = @_;
@@ -434,33 +447,6 @@ package PerlSkeleton;
 	sub meta_tag {
 		my ( $name, $value ) = @_;
 		return "<meta name=\"$name\" content=\"$value\" />\n";
-	}
-	
-	# Content page body
-	sub body {
-		my $body	= shift;
-		return tag( 'body', "\n$body\n", 0, 1 );
-	}
-	
-	# Close HTML and end execution
-	sub ending() {
-		print "</html>";
-		exit ( 0 );
-	}
-	
-	# Render a complete HTML page
-	sub html {
-		my ( $title, $body, %sent_meta ) = @_;
-		
-		# Merge any sent meta tags with default ones
-		my %mtags = ( %common_meta, %sent_meta );
-		
-		# Put together the HTML page
-		preamble();
-		print heading( $title, %mtags );
-		print body( $body );
-		
-		ending();
 	}
 	
 	# Create heading tag
@@ -592,7 +578,6 @@ package PerlSkeleton;
 	
 	
 	####		Helpers			####
-	
 	
 	# Raw data sent by the user
 	# http://www.perlmonks.org/?node_id=135323
@@ -928,4 +913,3 @@ package PerlSkeleton;
 }
 
 __END__
-
