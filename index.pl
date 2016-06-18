@@ -580,9 +580,9 @@ use warnings;
 			return '';
 		}
 		
-		my $data = '';
+		my $data	= '';
+		my $len		= 0;
 		my $raw;
-		my $len;
 		while( read( STDIN, $raw, $rblock ) ) {
 			if ( 
 				$len > $opts{'clen'} || 
@@ -591,7 +591,7 @@ use warnings;
 				exit ( 0 );
 			}
 			$data	.= $raw;
-			$len	+= 1024;
+			$len	+= $rblock;
 		}
 		
 		return $data;
