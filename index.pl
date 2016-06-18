@@ -683,9 +683,8 @@ package PerlSkeleton;
 			if ( exists( $parsed{$name} ) ) {
 				
 				# Use the size to increment the key
-				my $size = keys $parsed{$name};
-				$parsed{$name}->{$size} = 
-					( %parsed{$name}, ( $size => $value ) );
+				my $size = scalar keys $parsed{$name};
+				$parsed{$name}{$size} = $value;
 			} else {
 				# No duplicates yet, use zero as the key
 				$parsed{$name} = ( { 0 => $value } );
