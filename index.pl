@@ -395,15 +395,16 @@ package PerlSkeleton;
 		
 		# Iterate through given routes
 		foreach my $route ( sort keys %routes ) {
+			my $filter =  filter_route( $route );
 			
 			# If we found this route has a handler
-			if ( $path =~ s/^$route(\/)?$//i ) {
+			if ( $path =~ m/^$filter(\/)?$/i ) {
 				
 				# Pass matches into parameters
 				my %params = parse_url( $route );
 				
 				# Call designated handler
-				$routes{$route}->( $method, $path, %params );
+				$routes{$route}->( $method, $filter, %params );
 				
 				# Break out of search
 				return;
@@ -412,6 +413,13 @@ package PerlSkeleton;
 		
 		# Fallback to not found
 		not_found( $method, $path );
+	}
+	
+	# Replace convenience placeholders with regex equivalents
+	sub filter_route {
+		my $route = shift;
+		$route =~ s/(\:\w+)/$routesubs{$1}/gi;
+		return $route;
 	}
 	
 	# URL parameters
