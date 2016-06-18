@@ -843,6 +843,15 @@ use warnings;
 		exit ( 0 );
 	}
 	
+	# Trim text
+	sub trim {
+		my $data = shift;
+		$data	=~ s/^\s+//;
+		$data	=~ s/\s+$//;
+		
+		return $data;
+	}
+	
 	
 	
 	####		Templates		####
