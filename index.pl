@@ -3,7 +3,7 @@
 # Perl Skeleton is a simple web page starter for basic sites
 # Includes:
 #	- Simple URL router
-#	- HTML input field generation
+#	- HTML templates
 #	- Meta tag generation
 
 use v5.20;						# Perl version
@@ -49,20 +49,25 @@ package PerlSkeleton;
 	# Application routes (add/edit as needed)
 	# https://stackoverflow.com/questions/1915616/how-can-i-elegantly-call-a-perl-subroutine-whose-name-is-held-in-a-variable#1915709
 	my %routes = (
-		'/'			=> \&home,		# Home route
-		'/(?<page>\d+)'		=> \&home,		# Home pagination
+		'/'				=> \&home,		# Home route
+		'/posts'			=> \&home,
+		'/page:page'			=> \&home,		# Home pagination
 		
 		# Browse the archives
-		'/posts'								=> \&archive,
-		'/posts/(?<year>\d{4})'							=> \&archive,
-		'/posts/(?<year>\d{4})/(?<month>\d{2})'					=> \&archive,
-		'/posts/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})'			=> \&archive,
+		'/posts/:year'				=> \&archive,
+		'/posts/:year/page:page'		=> \&archive,
+		
+		'/posts/:year/:month'			=> \&archive,
+		'/posts/:year/:month/page:page'		=> \&archive,
+		
+		'/posts/:year/:month/:day'		=> \&archive,
+		'/posts/:year/:month/:day/page:page'	=> \&archive,
 		
 		# Read a page
-		'/posts/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})/(?<slug>\w+)'	=> \&page,
+		'/posts/:year/:month/:day/:slug'	=> \&page,
 		
 		# Edit a page
-		'/edit/(?<year>\d{4})/(?<month>\d{2})/(?<day>\d{2})/(?<slug>\w+)'	=> \&edit_page,
+		'/edit/:year/:month/:day/:slug'	=> \&edit_page,
 		
 		'/new'				=> \&new_page,		# Create a page
 		'/save'				=> \&save_page,		# Save a page
@@ -428,6 +433,7 @@ package PerlSkeleton;
 	sub parse_url {
 		my $route	= shift;
 		my %params;
+		
 		# Hacking the match object into a hash
 		# https://doc.perl6.org/language/regexes#Named_captures
 		#if ( $uri ~~ m/^$route(\/)?$/i ) {
