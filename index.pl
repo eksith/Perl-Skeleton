@@ -603,18 +603,18 @@ use warnings;
 		my $raw;
 		my @sent;
 		
-		given ( $method ) {
-			when( 'get' ) {
+		for ( $method ) {
+			/get/ and do { 
 				# Check for empty query string
 				if ( !defined( $opts{'qs'} ) ) {
-					return undef;
 				}
-		
+				
 				# Get sent values from the query string
 				$raw	= $opts{'qs'};
-			}
+				last; 
+			};
 			
-			when( 'post' ) {
+			/post/ and do {
 				# Check for empty content length
 				if ( !defined( $opts{'clen'} ) ) {
 					return undef;
@@ -622,10 +622,11 @@ use warnings;
 				
 				# Get sent data from raw content
 				$raw	= raw_content();
-			}
+				last;
+			};
 			
 			# Form shouldn't have been used
-			default { exit ( 0 ); }
+			exit ( 0 );
 		}
 		#return $raw
 		return parse_form( $raw );
@@ -757,18 +758,16 @@ use warnings;
 	sub filter_method {
 		my ( $method ) = @_;
 		my $out = '';
-		
-		given( $method ) {
-			$out = 'head'	when 'HEAD';
-			$out = 'post'	when 'POST';
-			$out = 'delete'	when 'DELETE';
-			$out = 'put'	when 'PUT';
-			$out = 'patch'	when 'PATCH';
+		for ( $method ) {
+			/HEAD/		and do { $out = 'head';		last; };
+			/POST/		and do { $out = 'post';		last; };
+			/DELETE/	and do { $out = 'delete';	last; };
+			/PUT/		and do { $out = 'put';		last; };
+			/PATCH/		and do { $out = 'patch';	last; };
 			
 			# Use get if all else failed
-			default { $out = 'get'; }
+			$out = 'get';
 		}
-		
 		return ( $out );
 	}
 	
