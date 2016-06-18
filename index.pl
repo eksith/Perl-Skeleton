@@ -887,8 +887,8 @@ package PerlSkeleton;
 	
 	# Render a given template
 	sub render {
-		my ( $name, %data ) = @_;
-		my $tpl		= load_template( $name );
+		my ( $name, %data, $ctheme ) = @_;
+		my $tpl		= load_template( $name, $ctheme );
 		my $html	= placeholders( $tpl, %data );
 		print "Content-type: text/html\n\n";
 		print $html;
@@ -907,11 +907,12 @@ package PerlSkeleton;
 	
 	# Load a template file
 	sub load_template {
-		my $name	= shift;
-		my $file	= $templates . '/' . 
-					$theme . '/' . 
-					$name . '.html';
-		my $tpl		= '';
+		my ( $name, $ctheme )	= @_;
+		my $ltheme		= $ctheme ? $ctheme : $theme;
+		my $file		= $templates . '/' . 
+						$ltheme . '/' . 
+						$name . '.html';
+		my $tpl			= '';
 		
 		open( my $fh, '<:encoding(UTF-8)', $file )
 			or die ( 'Unable to find template' );
