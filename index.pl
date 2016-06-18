@@ -194,8 +194,9 @@ use warnings;
 			
 			exit( 0 );
 		}
+		
 		# After saving the page, redirect
-		#redir( '/' );
+		redir( '/' );
 	}
 	
 	# Do logging in things
