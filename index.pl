@@ -16,6 +16,7 @@ use warnings;
 	my $version	= '0.1';			# App version
 	
 	my $store	= 'data';			# Storage folder
+	my $templates	= 'templates';			# Templates directory
 	my $ssize	= 16;				# Password salt size
 	my $robots	= "index, follow";		# Robots meta tag
 	my $maxclen	= 50000;			# Maximum content length (bytes)
@@ -855,6 +856,42 @@ use warnings;
 	
 	
 	####		Templates		####
-	# TODO
 	
+	# Render a given template
+	sub render {
+		my ( $name, %data ) = @_;
+		my $tpl		= load_template( $name );
+		my $html	= placeholders( $tpl, %data );
+		print "Content-type: text/html\n\n";
+		print $html;
+		
+		exit( 0 );
+	}
+	
+	# Substitute placeholders with sent data
+	sub placeholders {
+		my ( $tpl, %data ) = @_;
+		
+		# Swap {label} markers with label => values from $data
+		$tpl =~ s/\{([\w]+)\}/$data{$1}/g;
+		return $tpl;
+	}
+	
+	# Load a template file
+	sub load_template {
+		my $name	= shift;
+		my $file	= $templates . '/' . $name . '.html';
+		my $tpl		= '';
+		
+		open( my $fh, '<:encoding(UTF-8)', $file )
+			or die ( 'Unable to find template' );
+		
+		while ( my $row = <$fh> ) {
+			chomp( $row );
+			$tpl .= "$row\n";
+		}
+		close $fh;
+		return $tpl;
+	}
 }
+__END__
