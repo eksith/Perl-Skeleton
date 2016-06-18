@@ -707,7 +707,7 @@ package PerlSkeleton;
 			if ( exists( $parsed{$name} ) ) {
 				
 				# Use the size to increment the key
-				my $size = scalar keys $parsed{$name};
+				my $size = scalar keys %{$parsed{$name}};
 				$parsed{$name}{$size} = $value;
 			} else {
 				# No duplicates yet, use zero as the key
@@ -890,6 +890,7 @@ package PerlSkeleton;
 		my ( $name, %data, $ctheme ) = @_;
 		my $tpl		= load_template( $name, $ctheme );
 		my $html	= placeholders( $tpl, %data );
+		
 		print "Content-type: text/html\n\n";
 		print $html;
 		
