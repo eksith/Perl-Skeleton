@@ -9,17 +9,22 @@
 use v5.20;						# Perl version
 use strict;
 use warnings;
+
+use Digest::SHA qw(hmac_sha1);				# Needed for pbkdf2
+
 package PerlSkeleton;
 {
 	# Base variables
 	my $app		= 'Perl Skeleton';		# App name
 	my $version	= '0.1';			# App version
 	
-	my $store	= 'data';			# Storage folder
+	my $store	= 'data';			# Storage folder (ideally outside web root)
 	my $templates	= 'templates';			# Templates directory
-	my $theme	= 'default';			# Template name
+	my $theme	= 'basic';			# Template name
 	
 	my $ssize	= 16;				# Password salt size
+	my $passlen	= 48;				# Password hash length
+	my $rounds	= 10000;			# Hash rounds
 	my $robots	= "index, follow";		# Robots meta tag
 	my $maxclen	= 50000;			# Maximum content length (bytes)
 	my $rblock	= 1024;				# Read block size
@@ -49,9 +54,9 @@ package PerlSkeleton;
 	# Application routes (add/edit as needed)
 	# https://stackoverflow.com/questions/1915616/how-can-i-elegantly-call-a-perl-subroutine-whose-name-is-held-in-a-variable#1915709
 	my %routes = (
-		'/'				=> \&home,		# Home route
-		'/posts'			=> \&home,
-		'/page:page'			=> \&home,		# Home pagination
+		'/'					=> \&home,		# Home route
+		'/posts'				=> \&home,
+		'/page:page'				=> \&home,		# Home pagination
 		
 		# Browse the archives
 		'/posts/:year'				=> \&archive,
@@ -67,14 +72,14 @@ package PerlSkeleton;
 		'/posts/:year/:month/:day/:slug'	=> \&page,
 		
 		# Edit a page
-		'/edit/:year/:month/:day/:slug'	=> \&edit_page,
+		'/edit/:year/:month/:day/:slug'		=> \&edit_page,
 		
-		'/new'				=> \&new_page,		# Create a page
-		'/save'				=> \&save_page,		# Save a page
+		'/new'					=> \&new_page,		# Create a page
+		'/save'					=> \&save_page,		# Save a page
 		
-		'/login'			=> \&login,		# User login
-		'/logout'			=> \&logout,		# User logout
-		'/changepass'			=> \&change_pass	# Change login password
+		'/login'				=> \&login,		# User login
+		'/logout'				=> \&logout,		# User logout
+		'/changepass'				=> \&change_pass	# Change login password
 	);
 	
 	# Common meta tags
@@ -88,8 +93,8 @@ package PerlSkeleton;
 		
 		# Robot follow/index
 		robots		=> $robots
-			
 	);
+	
 	
 	
 	####		Page routes (per above)	####
@@ -99,18 +104,21 @@ package PerlSkeleton;
 		my ( $method, $path, %params ) = @_;
 		
 		# Meta tags
-		my %mtags = ( 
+		my %mtags	= 
+		( 
 			%common_meta, (
 				description	=> 'Achtung Baby',
 				author		=> 'Bono'
 			) 
 		);
 		
+		my $test	= '<p>Hello world</p>';
+		
 		# Page template variables
 		my %template	= (
 			'title'		=> 'Home',
 			'heading'	=> 'Welcome',
-			'body'		=> '<p>Hello world</p>',
+			'body'		=> $test,
 			'meta'		=> meta_tags( %mtags )
 		);
 		
@@ -122,7 +130,8 @@ package PerlSkeleton;
 	sub page {
 		my ( $method, $path, %params ) = @_;
 		
-		my %mtags = ( 
+		my %mtags	= 
+		( 
 			%common_meta, (
 				description	=> 'Page description',
 				author		=> 'Page author'
@@ -147,10 +156,10 @@ package PerlSkeleton;
 		my $out		= '';
 		
 		# Override description
-		my %mtags = ( 
-			%common_meta, (
-				description	=> 'Content archive'
-			) 
+		my %mtags	= 
+		( 
+			%common_meta, 
+			( robots => 'noindex, nofollow' ) 
 		);
 		
 		# TODO find archives by parameters
@@ -172,17 +181,21 @@ package PerlSkeleton;
 		my ( $method, $path, %params ) = @_;
 		
 		# Override robots follow
-		my %mtags = ( 
-			%common_meta, (
-				robots	=> 'noindex, nofollow'
-			) 
+		my %mtags	= 
+		( 
+			%common_meta, 
+			( robots => 'noindex, nofollow' ) 
 		);
+		
+		# Create anti-csrf token
+		my $csrf	= gen_csrf( 'editpage', '/save' );
 		
 		# Build new page
 		my %template	= (
 			'title'		=> 'Create a new page',
 			'heading'	=> 'Creating a new page',
 			'action'	=> '/save',
+			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
 		
@@ -194,13 +207,15 @@ package PerlSkeleton;
 		my ( $method, $path, %params ) = @_;
 		
 		# Override robots follow
-		my %mtags = ( 
-			%common_meta, (
-				robots	=> 'noindex, nofollow'
-			) 
+		my %mtags	= 
+		( 
+			%common_meta, 
+			( robots => 'noindex, nofollow' ) 
 		);
 		
-		# TODO Find page
+		my $csrf	= gen_csrf( 'editpage', '/save' );
+		
+		# TODO Find page to edit
 		
 		# Build edit page
 		my %template	= (
@@ -210,6 +225,7 @@ package PerlSkeleton;
 			'page_body'	=> 'Test content',
 			'page_pub'	=> '6/18/2016',
 			'action'	=> '/save',
+			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
 			
@@ -224,15 +240,21 @@ package PerlSkeleton;
 		if ( $method eq "post" ) {
 			my %data	= form_data( 'post' );
 			
-			# Test
+			# Check anti-csrf token
+			my $csrf	= field( 'csrf', %data );
+			if ( !verify_csrf( 'editpage', $path, $csrf ) ) {
+				redir( '/' );
+			}
+			
 			my $content	= field( 'body', %data );
 			my $title	= field( 'title', %data );
 			
 			# Merge any sent meta tags with default ones
-			my %mtags = ( 
-				%common_meta, (
-					robots	=> 'noindex, nofollow'
-				) );
+			my %mtags = 
+			( 
+				%common_meta, 
+				( robots => 'noindex, nofollow' ) 
+			);
 			
 			my %template	= (
 				'title'		=> 'Newly saved page',
@@ -254,26 +276,37 @@ package PerlSkeleton;
 		
 		# Login info was sent
 		if ( $method eq "post" ) {
-			# Process login (TODO)
-			my %data = form_data( 'post' );
 			
-			redir( '/' );
+			# Process login
+			my %data	= form_data( 'post' );
+			my $csrf	= field( 'csrf', %data );
+			
+			# If csrf token failed, redirect to home
+			if ( !verify_csrf( 'loginpage', $path, $csrf ) ) {
+				redir( '/' );
+			}
+			
+			# TODO check login
 		}
 	
 		# Everything else,  display login form
-		my %mtags = ( 
-			%common_meta, (
-				robots	=> 'noindex, nofollow'
-			) 
+		my %mtags	= 
+		( 
+			%common_meta, 
+			( robots => 'noindex, nofollow' ) 
 		);
 		
-		# TODO Find page
+		# Anti csrf token
+		my $csrf	= gen_csrf( 'loginpage', '/login' );
+		
+		# TODO access login data
 		
 		# Build login page
 		my %template	= (
 			'title'		=> 'Login',
 			'heading'	=> 'Site access',
 			'action'	=> '/login',
+			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
 		
@@ -292,21 +325,30 @@ package PerlSkeleton;
 		
 		# Data was sent
 		if ( $method eq 'post' ) {
-			# Process change password (TODO)
-			my %data = form_data( 'post' );
 			
-			redir( '/' );
+			# Process change password
+			my %data	= form_data( 'post' );
+			my $csrf	= field( 'csrf', %data );
+			if ( !verify_csrf( 'loginpage', $path, $csrf ) ) {
+				redir( '/' );
+			}
+			
+			# TODO change password
 		}
 		
-		my %mtags = ( 
-			%common_meta, (
-				robots	=> 'noindex, nofollow'
-			) 
+		my %mtags = 
+		( 
+			%common_meta, 
+			( robots => 'noindex, nofollow' )
 		);
+		
+		my $csrf	= gen_csrf( 'passpage', '/changepass' );
 		
 		my %template	= (
 			'title'		=> 'Change password',
 			'heading'	=> "Change your password",
+			'action'	=> '/changepass',
+			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
 		
@@ -325,12 +367,9 @@ package PerlSkeleton;
 	sub not_found {
 		my ( $method, $path ) = @_;
 		my %mtags = ( 
-			%common_meta, (
-				robots	=> 'noindex, nofollow'
-			) 
+			%common_meta, 
+			( robots => 'noindex, nofollow' ) 
 		);
-		
-		# TODO Find page
 		
 		# Build 404 page
 		my %template	= (
@@ -347,7 +386,9 @@ package PerlSkeleton;
 	
 	####		Internal variables	####
 	
-	# https://doc.perl6.org/language/regexes#Subrules
+	# Configuration settings
+	my %settings;
+	
 	
 	# Routing substitutions for brevity
 	my %routesubs = (
@@ -362,6 +403,9 @@ package PerlSkeleton;
 		# Pagination number
 		':page'		=> '(?<page>\d+)'
 	);
+	
+	# Cookie data
+	my %cookie;
 	
 	
 	
@@ -406,10 +450,12 @@ package PerlSkeleton;
 			if ( $path =~ m/^$filter(\/)?$/i ) {
 				
 				# Pass matches into parameters
-				my %params = parse_url( $route );
+				my %params	= parse_url( $filter );
 				
 				# Call designated handler
-				$routes{$route}->( $method, $filter, %params );
+				$routes{$route}->( 
+					$method, $filter, %params 
+				);
 				
 				# Break out of search
 				return;
@@ -460,7 +506,11 @@ package PerlSkeleton;
 	# Print individual meta tag
 	sub meta_tag {
 		my ( $name, $value ) = @_;
-		return "<meta name=\"$name\" content=\"$value\" />\n";
+		my %at = ( %attr, (
+			name	=> $name,
+			content	=> $value
+		) );
+		return tag( 'meta', undef, 1, 1, %at );
 	}
 	
 	# Create heading tag
@@ -511,9 +561,8 @@ package PerlSkeleton;
 			
 			# Merge the value with attributes, if it's there
 			if ( defined( $value ) ) {
-				my %attr = ( %attr, (
-					value => $value
-				) );
+				my %attr = 
+				(  %attr, ( value => $value ) );
 			}
 			
 			my $at = attr( %attr );
@@ -528,35 +577,6 @@ package PerlSkeleton;
 			return "$out\n";
 		}
 		return $out;
-	}
-	
-	# Create an HTML input box (text, password, submit etc...)
-	sub input {
-		my ( $name, $type, $value, %attr ) = @_;
-		my $at = attr( %attr ); # Append any attributes
-		my $out = "<input name=\"$name\" type=\"$type\" " . 
-				"value=\"$value\"$at />";
-		
-		return $out;
-	}
-	
-	# Create a textarea
-	sub text {
-		my ( $name, $value, $rows, $cols, %attr ) = @_;
-		my %st = (
-			rows	=> $rows,
-			cols	=> $cols
-		);
-		my $at = attr( %attr ); # Append any attributes
-		my $out = "<textarea name=\"$name\" rows=\"$rows\" " 
-				. "cols=\"$cols\"$at>";
-		
-		if ( !defined( $value ) || $value eq '' ) {
-			return ( $out . '</textarea>' );
-		}
-		
-		return ( $out . $value . '</textarea>' );
-		
 	}
 	
 	# Create a selectbox with options and optional selected item
@@ -591,7 +611,40 @@ package PerlSkeleton;
 	
 	
 	
-	####		Helpers			####
+	####		File handling		####
+	
+	# Get a specific setting
+	sub setting {
+		my $name = shift;
+		if ( !%settings ) {
+			%settings = load_settings();
+		}
+		
+		return exists( $settings{$name} ) ? 
+				$settings{$name} : '';
+	}
+	
+	# Settings file
+	sub load_settings {
+		# TODO
+	}
+	
+	# Browse for posts with a starting date
+	sub browse {
+		my ( %start, $limit, $page ) = @_;
+		# TODO
+	}
+	
+	# Look for posted comments on this post
+	sub comments {
+		my ( %path, $limit, $page ) = @_;
+		# TODO
+	}
+	
+	
+	
+	
+	####		Form handling		####
 	
 	# Raw data sent by the user
 	# http://www.perlmonks.org/?node_id=135323
@@ -616,7 +669,7 @@ package PerlSkeleton;
 				$len > $opts{'clen'} || 
 				( $len + $rblock ) > $maxclen 
 			) {
-				exit ( 0 );
+				die( 'Content exceeded' );
 			}
 			$data	.= $raw;
 			$len	+= $rblock;
@@ -654,7 +707,7 @@ package PerlSkeleton;
 			};
 			
 			# Form shouldn't have been used
-			exit ( 0 );
+			die( 'Unknown method' );
 		}
 		
 		return parse_form( $raw );
@@ -746,19 +799,23 @@ package PerlSkeleton;
 	sub cookie_data {
 		my $name	= shift;
 		my @data	= raw_cookie();
-		foreach my $cookie ( @data ) {
-			# TODO
+		foreach my $c ( @data ) {
+			my ( $k, $v ) = split( /=/, $data[$c] );
+			if ( !$v ) {
+				$v = '';
+			}
+			$cookie{$k} = $v;
 		}
 	}
 	
 	# Get raw sent cookie 
 	sub raw_cookie{
-		my $cookie = $opts{'cookie'};
-		if ( !$cookie ) {
+		my $c = $opts{'cookie'};
+		if ( !$c ) {
 			return '';
 		}
 		
-		my @data = split( "[;,] ?", $cookie );
+		my @data = split( "[;,] ?", $c );
 		chomp( @data );
 		
 		return @data;
@@ -767,7 +824,12 @@ package PerlSkeleton;
 	# Set cookie data by name
 	sub set_cookie {
 		my ( $name, %data  ) = @_;
-		
+		# TODO
+	}
+	
+	# Get a specific cookie value
+	sub get_cookie {
+		my $name = shift;
 		# TODO
 	}
 	
@@ -802,6 +864,51 @@ package PerlSkeleton;
 		return ( $out );
 	}
 	
+	# Generate an anti-cross-site request forgery token
+	sub gen_csrf {
+		my ( $form, $path ) = @_;
+		my $ua		= $opts{'ua'};		# User agent string
+		my $addr	= $opts{'addr'};	# IP address
+		my $salt	= rnd( 6 );
+		
+		#my $csalt	= rnd( 6 )
+		# Set the form nonce in the cookie
+		#set_cookie( $form . 'nonce', $csalt );
+		
+		my $token	= $form . $path . $ua . $addr;
+		
+		return crypt( $token, $salt );		# 56 bit DES
+	}
+	
+	# Verify CSRF token
+	sub verify_csrf {
+		my ( $form, $path, $csrf ) = @_;
+		
+		# Get the form nonce from the cookie
+		#my $csalt	= get_cookie( $form . 'nonce' );
+		#if ( !$csalt ) {
+		#	return 0;
+		#}
+		
+		my $ua		= $opts{'ua'};
+		my $addr	= $opts{'addr'};
+		my $salt	= substr( $csrf, 0, 2 );
+		
+		my $token	= $form . $path . $ua . $addr;
+		my $gen		= crypt( $token, $salt );
+		
+		# If generated token matches sent one, return true
+		if ( $gen eq $csrf ) {
+			return 1;
+		}
+		
+		return 0;
+	}
+	
+	
+	
+	####		Helpers			####
+	
 	# Hash a password
 	sub password {
 		my ( $pass, $salt ) = @_;
@@ -810,19 +917,86 @@ package PerlSkeleton;
 			$salt	= rnd( $ssize );
 		}
 		
-		return crypt( $pass, $salt );
+		# Generate hash
+		my $hash	= 
+		pbkdf2( 
+			\&Digest::SHA::hmac_sha1, $pass, $salt, 
+			$rounds, $passlen 
+		);
+		
+		# Convert to hex
+		$hash		= unpack( "H*", $hash );
+		
+		# Package constituents
+		return join( '$', $salt, $rounds, $passlen, $hash );
 	}
 	
 	# Verify hashed password
 	sub verify_pass {
 		my ( $pass, $stored ) = @_;
 		
-		my $salt	= substr( $pass, 0, 2 );
-		my $gen		= crypt( $pass, $salt );
-		if ( $gen eq $stored ) {
+		# Check stored components
+		my $l		= length( $stored );
+		
+		# Too large or non-existent
+		if ( !$l || $l > 500 ) {
+			return 0;
+		}
+		
+		# Break the package into constituents
+		my @compile	= split( /\$/, $stored );
+		
+		# Check constituent size
+		if ( scalar @compile != 4 ) {
+			return 0;
+		}
+		
+		# Break the components
+		my ( $salt, $rounds, $passlen, $raw ) = @compile;
+		$rounds		= int( $rounds );
+		$passlen	= int( $passlen );
+		
+		# Create a hash with the given password
+		my $hash	= 
+		pbkdf2( 
+			\&Digest::SHA::hmac_sha1, $pass, $salt, 
+			$rounds, $passlen 
+		);
+		
+		$hash		= unpack( "H*", $hash );
+		
+		# Sent password hash matches stored hash
+		if ( $hash eq $raw ) {
 			return 1;
 		}
+		
+		# Defaults to false
 		return 0;
+	}
+	
+	# Password key derivation function
+	# Initial function  Jochen Hoenicke <hoenicke@gmail.com> from the
+	# Palm::Keyring perl module.  Found on the PerlMonks Forum
+	# http://www.perlmonks.org/?node_id=631963
+	sub pbkdf2 {
+		my ( $prf, $pass, $salt, $iter, $len ) = @_;
+		my ( $k, $t, $u, $ui, $i );
+		
+		$t = '';
+		for ( $k = 1; length( $t ) <  $len; $k++ ) {
+			$u = $ui = 
+			&$prf( 
+				$salt.pack( 'N', $k ), $pass 
+			);
+			
+			for ( $i = 1; $i < $iter; $i++ ) {
+				$ui	= &$prf( $ui, $pass );
+				$u	^= $ui;
+			}
+			$t .= $u;
+		}
+		
+		return substr( $t, 0, $len );
 	}
 	
 	# Generate random data
