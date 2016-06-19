@@ -1,0 +1,177 @@
+* {
+	outline:		none;
+	box-sizing:		border-box;
+	-webkit-appearance:	none;
+	-moz-appearance:	none;
+	appearance:		none;
+}
+
+body {
+	font:			400 86% "Nimbus Sans L", "FreeSans", sans-serif;
+	color:			#444;
+	line-height:		1.6em;
+	background:		#f7f7f7;
+}
+
+.page {
+	margin:			3em auto;
+	max-width:		800px;
+	font-family:		"Nimbus Sans Roman No9L", Georgia, serif;
+	line-height:		1.8em;
+}
+
+h1, h2, h3, h4, h5, h6, legend, input, form {
+	font-family:		"Nimbus Sans L", "FreeSans", sans-serif;
+	color:			#555;
+}
+
+h1, h2, h3 {
+	font-weight:		400;
+}
+
+a {
+	color:			#4285f4;
+	text-decoration:	underline;
+}
+
+a:visited {
+	color:			#646464;
+}
+
+form {
+	display:		block;
+}
+
+input, textarea, select, legend {
+	font:			inherit;
+	line-height:		inherit;
+	display:		inline-block;
+}
+
+input, textarea, select, .select {
+	border-radius:		.3em;
+	padding:		.5em;
+}
+
+legend {
+	color:			#646464;
+	font:			400 1.2em "Nimbus Sans L", "FreeSans", sans-serif;
+}
+
+input[type='text'], input[type='password'], input[type='email'], 
+input[type='number'], input[type='datetime-local'], textarea, select, 
+.select {
+	color:			#444;
+	border:			1px solid #ccc;
+	background:		#fff;
+}
+
+input[type='text'], input[type='password'], input[type='email'], 
+input[type='number'], input[type='datetime-local'], input[type='submit'], 
+input[type='button'], .btn, .select  {
+	height:			37px;
+}
+
+.select {
+	padding:		0;
+	position:		relative;
+	display:		block;
+	overflow:		hidden;
+}
+
+.select:before {
+	content:		'\25BC';
+	position:		absolute;
+	right:			.5em;
+	top:			.5em;
+	color:			#888;
+}
+
+.select select {
+	cursor:			pointer;
+	border:			0;
+	background:		transparent;
+}
+
+input[type='submit'], input[type='button'], .btn {
+	padding:		.5em .6em;
+	color:			#e1ffff;
+	background:		#4285f4;
+	border:			0;
+	cursor:			pointer;
+}
+
+.block input[type='submit'], .block input[type='button'], .block .btn {
+	display:		block;
+}
+
+input[type='submit']:hover, input[type='button']:hover, .btn:hover {
+	box-shadow:		.1em .1em .2em #bbb;
+	color:			#fff;
+}
+
+input[type='submit']:active, input[type='button']:active, .btn:active {
+	background:		#3266d5;
+}
+
+input[type='checkbox'], input[type='radio'] {
+	-webkit-appearance:	checkbox;
+	-moz-appearance:	checkbox;
+	appearance:		checkbox;
+	cursor:			pointer;
+	vertical-align:		middle;
+}
+
+
+form.block {
+	margin:			auto;
+	vertical-align:		middle;
+	position:		absolute;
+	left:			0;
+	right:			0;
+	top:			0;
+	bottom:			0;
+	width:			300px;
+	height:			calc(50vh);
+	/* width: calc(10vw + 10vh); */
+}
+
+form.block input[type='text'], form.block input[type='password'], 
+form.block input[type='email'], form.block textarea, form.block legend,
+form.block .select {
+	display:		block;
+	width:			100%;
+}
+
+form.block legend {
+	text-align:		center;
+}
+
+form.block input[type='submit'], form.block input[type='button'], 
+form.block .btn {
+	width:			100%;
+	margin:			0 auto .3em auto;
+}
+.select select {
+	width:			110%;
+}
+
+::-webkit-input-placeholder {
+	color:			#888;
+	opacity:		1;
+}
+
+::-moz-placeholder {
+	color:			#888;
+	opacity:		1;
+}
+
+:-ms-input-placeholder {  
+	color:			#888;
+	opacity:		1;
+}
+
+input:-ms-input-placeholder {  
+	color:			#888;
+	opacity:		1;
+}
