@@ -103,10 +103,6 @@ package PerlSkeleton;
 		robots		=> $robots
 	);
 	
-	# Configuration settings
-	my %settings;
-	
-	
 	# Routing substitutions for brevity
 	my %routesubs = (
 		# Calendar markers
@@ -120,6 +116,9 @@ package PerlSkeleton;
 		# Pagination number
 		':page'		=> '(?<page>\d+)'
 	);
+	
+	# Configuration settings
+	my %settings;
 	
 	# Cookie data
 	my %cookie;
@@ -922,7 +921,7 @@ package PerlSkeleton;
 				return %data;
 			}
 			
-			my $raw			= 
+			$raw			= 
 			MIME::Base64::decode_base64( $raw );
 			
 			# Verify checksum against current user signature
@@ -970,7 +969,7 @@ package PerlSkeleton;
 		my $lang	= $opts{'lang'};	# Accept language
 		my $dnt		= $opts{'dnt'};		# Do Not Track
 		
-		my $hash = Digest::SHA::sha256_hex( $ua . $addr . $lang );
+		my $hash = Digest::SHA::sha256_hex( $ua . $addr . $lang . $dnt );
 		return unpack( "H*", $hash );
 	}
 	
