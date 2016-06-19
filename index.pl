@@ -10,7 +10,8 @@ use v5.20;						# Perl version
 use strict;
 use warnings;
 
-use Digest::SHA qw(hmac_sha1);				# Needed for pbkdf2
+use Digest::SHA qw( hmac_sha1 sha256_hex );		# Needed for pbkdf2 and checksums
+use MIME::Base64 qw( encode_base64 decode_base64 );	# Needed for safe packaging
 
 package PerlSkeleton;
 {
@@ -28,6 +29,9 @@ package PerlSkeleton;
 	my $robots	= "index, follow";		# Robots meta tag
 	my $maxclen	= 50000;			# Maximum content length (bytes)
 	my $rblock	= 1024;				# Read block size
+	
+	my $formexp	= 3600;				# Input form expiration (1 hour)
+	my $cookiexp	= 604800;			# Cookie expiration (7 days)
 	
 	# Common vars (always sent)
 	my ( $uri, $scheme, $method ) = (
@@ -82,6 +86,10 @@ package PerlSkeleton;
 		'/changepass'				=> \&change_pass	# Change login password
 	);
 	
+	
+	
+	####		Internal variables	####
+	
 	# Common meta tags
 	my %common_meta = (
 		
@@ -94,6 +102,27 @@ package PerlSkeleton;
 		# Robot follow/index
 		robots		=> $robots
 	);
+	
+	# Configuration settings
+	my %settings;
+	
+	
+	# Routing substitutions for brevity
+	my %routesubs = (
+		# Calendar markers
+		':year'		=> '(?<year>\d{4})',	
+		':month'	=> '(?<month>\d{2})',
+		':day'		=> '(?<day>\d{2})',
+		
+		# Page slug (search engine friendly string)
+		':slug'		=> '(?<slug>\w{1,80})',
+		
+		# Pagination number
+		':page'		=> '(?<page>\d+)'
+	);
+	
+	# Cookie data
+	my %cookie;
 	
 	
 	
@@ -122,6 +151,9 @@ package PerlSkeleton;
 			'meta'		=> meta_tags( %mtags )
 		);
 		
+		# Send cookie values before rendering
+		send_cookie();
+		
 		# Render a basic HTML page
 		render( 'index', %template );
 	}
@@ -146,6 +178,8 @@ package PerlSkeleton;
 			'meta'		=> meta_tags( %mtags )
 		);
 		
+		send_cookie();
+		
 		# Render page read
 		render( 'post', %template );
 	}
@@ -162,10 +196,9 @@ package PerlSkeleton;
 			( robots => 'noindex, nofollow' ) 
 		);
 		
-		# TODO find archives by parameters
-		foreach my $p ( keys %params ) {
-			$out .= ' '. $params{$p};
-		}
+		# Get posts by date
+		my $archives = find_by_date( %params );
+		
 		my %template	= (
 			'title'		=> 'Archive',
 			'heading'	=> 'This is an archive page',
@@ -173,6 +206,7 @@ package PerlSkeleton;
 			'meta'		=> meta_tags( %mtags )
 		);
 		
+		send_cookie();
 		render( 'archive', %template );
 	}
 	
@@ -187,7 +221,7 @@ package PerlSkeleton;
 			( robots => 'noindex, nofollow' ) 
 		);
 		
-		# Create anti-csrf token
+		# Create anti-CSRF token
 		my $csrf	= gen_csrf( 'editpage', '/save' );
 		
 		# Build new page
@@ -199,6 +233,7 @@ package PerlSkeleton;
 			'meta'		=> meta_tags( %mtags )
 		);
 		
+		send_cookie();
 		render( 'new', %template );
 	}
 	
@@ -228,7 +263,8 @@ package PerlSkeleton;
 			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
-			
+		
+		send_cookie();
 		render( 'edit', %template );
 	}
 	
@@ -240,7 +276,7 @@ package PerlSkeleton;
 		if ( $method eq "post" ) {
 			my %data	= form_data( 'post' );
 			
-			# Check anti-csrf token
+			# Check anti-CSRFtoken
 			my $csrf	= field( 'csrf', %data );
 			if ( !verify_csrf( 'editpage', $path, $csrf ) ) {
 				redir( '/' );
@@ -263,6 +299,7 @@ package PerlSkeleton;
 				'body'		=> $content
 			);
 			
+			send_cookie();
 			render( 'post', %template );
 		}
 		
@@ -281,7 +318,7 @@ package PerlSkeleton;
 			my %data	= form_data( 'post' );
 			my $csrf	= field( 'csrf', %data );
 			
-			# If csrf token failed, redirect to home
+			# If anti-CSRF token failed, redirect to home
 			if ( !verify_csrf( 'loginpage', $path, $csrf ) ) {
 				redir( '/' );
 			}
@@ -296,7 +333,7 @@ package PerlSkeleton;
 			( robots => 'noindex, nofollow' ) 
 		);
 		
-		# Anti csrf token
+		# Anti-CSRF token
 		my $csrf	= gen_csrf( 'loginpage', '/login' );
 		
 		# TODO access login data
@@ -309,7 +346,8 @@ package PerlSkeleton;
 			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
-		
+				
+		send_cookie();
 		render( 'login', %template );
 	}
 	
@@ -317,6 +355,7 @@ package PerlSkeleton;
 	sub logout {
 		my ( $method, $path, %params ) = @_;
 		
+		send_cookie();
 	}
 	
 	# Do password changing things
@@ -352,12 +391,15 @@ package PerlSkeleton;
 			'meta'		=> meta_tags( %mtags )
 		);
 		
+		send_cookie();
 		render( 'changepass', %template );
 	}
 	
 	# Do saving new password things
 	sub save_pass {
 		my ( $method, $path, %params ) = @_;
+		
+		send_cookie();
 		
 		# After changing the password, redirect
 		redir( '/' );
@@ -381,31 +423,6 @@ package PerlSkeleton;
 		
 		render( '404', %template );
 	}
-	
-	
-	
-	####		Internal variables	####
-	
-	# Configuration settings
-	my %settings;
-	
-	
-	# Routing substitutions for brevity
-	my %routesubs = (
-		# Calendar markers
-		':year'		=> '(?<year>\d{4})',	
-		':month'	=> '(?<month>\d{2})',
-		':day'		=> '(?<day>\d{2})',
-		
-		# Page slug (search engine friendly string)
-		':slug'		=> '(?<slug>\w{1,80})',
-		
-		# Pagination number
-		':page'		=> '(?<page>\d+)'
-	);
-	
-	# Cookie data
-	my %cookie;
 	
 	
 	
@@ -433,13 +450,16 @@ package PerlSkeleton;
 			}
 		}
 		
+		# Load any cookie data
+		cookie_data();
+		
 		# Call router
 		router( $uri );
 	}
 	
 	# URL path router
 	sub router {
-		my ( $path ) = @_;
+		my $path	= shift;
 		my $matches;
 		
 		# Iterate through given routes
@@ -468,7 +488,7 @@ package PerlSkeleton;
 	
 	# Replace convenience placeholders with regex equivalents
 	sub filter_route {
-		my $route = shift;
+		my $route	= shift;
 		$route =~ s/(\:\w+)/$routesubs{$1}/gi;
 		return $route;
 	}
@@ -478,7 +498,7 @@ package PerlSkeleton;
 	# https://doc.perl6.org/language/regexes#Subrules
 	sub parse_url {
 		my $route	= shift;
-		my %params;
+		my %params	= ();
 		
 		# Hacking the match object into a hash
 		# https://doc.perl6.org/language/regexes#Named_captures
@@ -495,7 +515,7 @@ package PerlSkeleton;
 	
 	# Print meta tags
 	sub meta_tags {
-		my ( %tags ) = @_;
+		my ( %tags )	= @_;
 		my $t = '';
 		foreach my $k ( sort keys %tags ) {
 			$t .= meta_tag( $k, $tags{$k} );
@@ -506,10 +526,10 @@ package PerlSkeleton;
 	# Print individual meta tag
 	sub meta_tag {
 		my ( $name, $value ) = @_;
-		my %at = ( %attr, (
+		my %at = (
 			name	=> $name,
 			content	=> $value
-		) );
+		);
 		return tag( 'meta', undef, 1, 1, %at );
 	}
 	
@@ -590,7 +610,7 @@ package PerlSkeleton;
 	
 	# Print attributes
 	sub attr {
-		my ( %attr ) = @_;
+		my ( %attr )	= @_;
 		if  ( !%attr ) {
 			return '';
 		}
@@ -615,13 +635,19 @@ package PerlSkeleton;
 	
 	# Get a specific setting
 	sub setting {
-		my $name = shift;
+		my $name	= shift;
 		if ( !%settings ) {
 			%settings = load_settings();
 		}
 		
 		return exists( $settings{$name} ) ? 
 				$settings{$name} : '';
+	}
+	
+	# Find posts by date
+	sub find_by_date {
+		my %params	= shift;
+		
 	}
 	
 	# Settings file
@@ -680,7 +706,7 @@ package PerlSkeleton;
 	
 	# Form data
 	sub form_data {
-		my $method = shift;
+		my $method	= shift;
 		my $raw;
 		my @sent;
 		
@@ -715,7 +741,7 @@ package PerlSkeleton;
 	
 	# Clean a parameter
 	sub clean_param {
-		my $value = shift;
+		my $value	= shift;
 			
 		# Strip null bytes
 		$value	=~ s/\x00$//;
@@ -734,10 +760,27 @@ package PerlSkeleton;
 	
 	# Clean a parameter name
 	sub clean_name {
-		my $value = shift;
+		my $value	= shift;
 		
 		# Strip non-printable chars including spaces
 		$value =~ s/[[:^print:]\s]//g;
+		
+		return trim( $value );
+	}
+	
+	# Generic clean
+	sub scrub {
+		my $value	= shift;
+		
+		if ( !$value ) {
+			return '';
+		}
+			
+		# Strip null bytes
+		$value	=~ s/\x00$//;
+		
+		# Strip non-printable chars except spaces
+		$value	=~ s/[[:^print:]]//g;
 		
 		return trim( $value );
 	}
@@ -795,62 +838,146 @@ package PerlSkeleton;
 	
 	
 	
-	# Get cookie data sent by the user
+	# Get cookie data sent by the user (app specific)
 	sub cookie_data {
 		my $name	= shift;
 		my @data	= raw_cookie();
-		foreach my $c ( @data ) {
-			my ( $k, $v ) = split( /=/, $data[$c] );
-			if ( !$v ) {
-				$v = '';
+		
+		if ( !@data ) {
+			return;
+		}
+		
+		# Iterate through data
+		foreach ( @data ) {
+			# Each k/v pair
+			my ( $name, $value ) = split( /=/, $_, 2 );
+			
+			# Scrub cookie data
+			$name	= clean_name( $name );
+			$value	= clean_param( $value );
+			
+			if ( !$name ) {
+				next;
 			}
-			$cookie{$k} = $v;
+			if ( !$value ) {
+				$value = '';
+			}
+			
+			$cookie{$name} = $value;
 		}
 	}
 	
 	# Get raw sent cookie 
 	sub raw_cookie{
-		my $c = $opts{'cookie'};
+		my $c	= $opts{'cookie'};
 		if ( !$c ) {
 			return '';
 		}
 		
+		# Basic clean
+		$c	= scrub( $c );
+		
+		# Separate cookie data
 		my @data = split( "[;,] ?", $c );
 		chomp( @data );
 		
 		return @data;
 	}
 	
-	# Set cookie data by name
+	# Set cookie data by name (key/value pairs)
 	sub set_cookie {
-		my ( $name, %data  ) = @_;
-		# TODO
+		my ( $name, %data )	= @_;
+		my $raw			= '';
+		
+		# Append key/value pairs marked by '=' separated by ';'
+		foreach my $k ( keys %data ) {
+			$raw .= join( '=',  $k, $data{$k} ) . ';';
+		}
+		
+		# Get rid of last ';'
+		chop( $raw );
+		
+		# Per key/value pair checksum with user signature
+		my $check		= 
+		Digest::SHA::sha256_hex( $raw . signature() ) ;
+		
+		$raw			= 
+		MIME::Base64::encode_base64( $raw, '' );
+		
+		$cookie{$name}		= join( '|', $check, $raw );
 	}
 	
 	# Get a specific cookie value
 	sub get_cookie {
-		my $name = shift;
-		# TODO
+		my $name	= shift;
+		my %data	= ();
+		
+		if ( exists( $cookie{$name} ) ) {
+			
+			# Checksum and encoded data
+			my ( $check, $raw )	= 
+				split( /\|/, $cookie{$name}, 2 );
+			
+			if ( !$check || !$raw ) {
+				return %data;
+			}
+			
+			my $raw			= 
+			MIME::Base64::decode_base64( $raw );
+			
+			# Verify checksum against current user signature
+			my $verify		= 
+			Digest::SHA::sha256_hex( $raw . signature() );
+			
+			# Check cookie checksum
+			if ( $check ne $verify ) {
+				return %data;
+			}
+			
+			# Split key/value pairs by delimiter
+			my @seg	= split( /;/, $raw );
+			
+			foreach ( @seg ) {
+				
+				# Extract key value pairs
+				my ( $k, $v ) = split( /=/, $_ );
+				$data{$k} = scrub( $v );
+			}
+		}
+		return %data;
 	}
 	
-	# Send cookie data
+	
+	
+	# Send cookie data to the user
+	# http://www.comptechdoc.org/independent/web/cgi/perlmanual/perlcookie.html
 	sub send_cookie {
-		# TODO
+		my $path	= shift;
+		if ( !$path ) {
+			$path = '/';
+		}
+		
+		my $exp = gmtime( time() + $cookiexp );
+		foreach my $k ( keys %cookie ) {
+			print "Set-Cookie: $k=$cookie{$k}; path=$path; expires=$exp;\n";
+		}
 	}
 	
-	sub parse_cookie {
-		my @sent = shift;
-		my %parsed;
+	# Visitor signature
+	sub signature {
+		my $ua		= $opts{'ua'};		# User agent string
+		my $addr	= $opts{'addr'};	# IP address
+		my $lang	= $opts{'lang'};	# Accept language
+		my $dnt		= $opts{'dnt'};		# Do Not Track
 		
-		# TODO
-		
-		return %parsed;
+		my $hash = Digest::SHA::sha256_hex( $ua . $addr . $lang );
+		return unpack( "H*", $hash );
 	}
 	
 	# Filter the request method to a small white list
 	sub filter_method {
-		my ( $method ) = @_;
-		my $out = '';
+		my $method	= shift;
+		my $out		= '';
 		for ( $method ) {
 			/HEAD/		and do { $out = 'head';		last; };
 			/POST/		and do { $out = 'post';		last; };
@@ -867,34 +994,43 @@ package PerlSkeleton;
 	# Generate an anti-cross-site request forgery token
 	sub gen_csrf {
 		my ( $form, $path ) = @_;
-		my $ua		= $opts{'ua'};		# User agent string
-		my $addr	= $opts{'addr'};	# IP address
 		my $salt	= rnd( 6 );
+		my %cdata	= (
+			'nonce'	=> rnd( 6 ),
+			'exp'	=> time() + $formexp
+		);
 		
-		#my $csalt	= rnd( 6 )
-		# Set the form nonce in the cookie
-		#set_cookie( $form . 'nonce', $csalt );
+		# Set the form nonce and expiration in the cookie
+		set_cookie( $form . 'form', %cdata );
 		
-		my $token	= $form . $path . $ua . $addr;
+		my $token	= $form . $path . $cdata{'nonce'};
 		
 		return crypt( $token, $salt );		# 56 bit DES
 	}
 	
-	# Verify CSRF token
+	# Verify anti-CSRF token
 	sub verify_csrf {
 		my ( $form, $path, $csrf ) = @_;
 		
-		# Get the form nonce from the cookie
-		#my $csalt	= get_cookie( $form . 'nonce' );
-		#if ( !$csalt ) {
-		#	return 0;
-		#}
+		# Get the form nonce and expiration from the cookie
+		my %data	= get_cookie( $form . 'form' );
+		if ( !%data ) {
+			return 0;
+		}
 		
-		my $ua		= $opts{'ua'};
-		my $addr	= $opts{'addr'};
+		# Empty values?
+		if ( !$data{'nonce'} || !$data{'exp'} ) {
+			return 1;
+		}
+		
+		# Check for anti-CSRF token expiration
+		my $exp = int( $data{'exp'} );
+		if ( $exp < time() - $formexp ) {
+			return 0;
+		}
+		
 		my $salt	= substr( $csrf, 0, 2 );
-		
-		my $token	= $form . $path . $ua . $addr;
+		my $token	= $form . $path . $data{'nonce'};
 		my $gen		= crypt( $token, $salt );
 		
 		# If generated token matches sent one, return true
@@ -902,6 +1038,7 @@ package PerlSkeleton;
 			return 1;
 		}
 		
+		# Defaults to false
 		return 0;
 	}
 	
@@ -1036,7 +1173,8 @@ package PerlSkeleton;
 				rand( 0b100 )
 			);
 		
-		return substr( $rand, 0, $len );
+		$rand = substr( $rand, 0, $len );
+		return unpack( 'H*', $rand );
 	}
 	
 	# Redirect and end script execution
@@ -1095,6 +1233,7 @@ package PerlSkeleton;
 			chomp( $row );
 			$tpl .= "$row\n";
 		}
+		
 		close $fh;
 		return $tpl;
 	}
