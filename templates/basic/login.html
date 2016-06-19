@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>{title}</title>
+<meta name="viewport" content="width=device-width" />
+<link rel="stylesheet" href="/templates/basic/style.css" />
+</head>
+<body>
+	<form  method="post" action="{action}" class="block">	
+		<legend>{heading}</legend>
+		<input name="csrf" type="hidden" value="{csrf}" />
+		<p><input name="username" type="text" placeholder="username" pattern="\w{2,30}" required /></p>
+		<p><input name="password" type="password" placeholder="password" pattern=".{5,200}" required /></p>
+		<p><label>Remember me <input type="checkbox" name="rem" value="1" /></label></p>
+		<p><input type="submit" value="Login" /></p>
+	</form>
+</body>
+</html>
