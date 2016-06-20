@@ -7,7 +7,7 @@
 }
 
 body {
-	font:			400 86% "Nimbus Sans L", "FreeSans", sans-serif;
+	font:			400 91% "Nimbus Sans L", "FreeSans", sans-serif;
 	color:			#444;
 	line-height:		1.6em;
 	background:		#f7f7f7;
@@ -138,7 +138,7 @@ form.block {
 
 form.block input[type='text'], form.block input[type='password'], 
 form.block input[type='email'], form.block textarea, form.block legend,
-form.block .select {
+form.block input[type='datetime-local'], form.block .select {
 	display:		block;
 	width:			100%;
 }

@@ -12,8 +12,10 @@
 		<legend>{heading}</legend>
 		<input name="csrf" type="hidden" value="{csrf}" />
 		<p><input name="title" type="text" size="50" placeholder="title" pattern=".{2,80}" required /></p>
-		<p><textarea name="body" rows="6" cols="60" placeholder="body" required></textarea></p>
-		<p><input name="title" type="datetime-local" placeholder="pubdate"  /> <input type="submit" value="Post" /></p>
+		<p><textarea name="body" rows="6" cols="62" placeholder="body" required></textarea></p>
+		<p><input name="slug" type="text" placeholder="page-slug" value="{post_slug}" />
+			<input name="pubdate" type="datetime-local" placeholder="pubdate" /> 
+			<input type="submit" value="Post" /></p>
 	</form>
 </div>
 </body>

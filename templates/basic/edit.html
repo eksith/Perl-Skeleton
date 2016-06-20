@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>{title}</title>
+{meta}
+<link rel="stylesheet" href="/templates/basic/style.css" />
+</head>
+<body>
+<div class="page">
+	<form  method="post" action="{action}">	
+		<legend>{heading}</legend>
+		<input name="csrf" type="hidden" value="{csrf}" />
+		<p><input name="title" type="text" size="50" placeholder="title" pattern=".{2,80}" value="{post_title}" required /></p>
+		<p><textarea name="body" rows="6" cols="62" placeholder="body" required>{post_body}</textarea></p>
+		<p><input name="slug" type="text" placeholder="page-slug" value="{post_slug}" /> 
+			<input name="pubdate" type="datetime-local" placeholder="pubdate" value="{post_pub}"  /> 
+			<input type="submit" value="Post" /></p>
+	</form>
+</div>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>{title}</title>
+<meta name="viewport" content="width=device-width" />
+<link rel="stylesheet" href="/templates/basic/style.css" />
+</head>
+<body>
+	<form method="post" action="{action}" class="block">
+		<legend>{heading}</legend>
+		<input name="csrf" type="hidden" value="{csrf}" />
+		<p><input name="username" type="text" placeholder="username" pattern="\w{2,30}" required /></p>
+		<p><input name="password" type="password" placeholder="password" pattern=".{5,200}" required /></p>
+		<p><input name="email" type="email" placeholder="email" required /></p>
+		<p><label>Agree to <a href="/terms">site terms</a> <input type="checkbox" name="terms" value="1" required /></label></p>
+		<p><input type="submit" value="Register" /></p>
+	</form>
+</body>
+</html>
