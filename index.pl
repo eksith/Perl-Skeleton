@@ -10,8 +10,17 @@ use v5.20;						# Perl version
 use strict;
 use warnings;
 
+# Unicode handling
+use utf8;
+use open qw( :std :utf8 );
+binmode( STDOUT, ":utf8" );
+binmode( STDIN, ":encoding(utf8)" );
+
+# Required modules
 use Digest::SHA qw( hmac_sha1 sha256_hex );		# Needed for pbkdf2 and checksums
 use MIME::Base64 qw( encode_base64 decode_base64 );	# Needed for safe packaging
+use Unicode::Normalize;					# Needed for URL slugs and special characters
+use Time::Local qw( timelocal );			# Needed for calendar and timestamps
 
 package PerlSkeleton;
 {
@@ -58,9 +67,10 @@ package PerlSkeleton;
 	# Application routes (add/edit as needed)
 	# https://stackoverflow.com/questions/1915616/how-can-i-elegantly-call-a-perl-subroutine-whose-name-is-held-in-a-variable#1915709
 	my %routes = (
-		'/'					=> \&home,		# Home route
-		'/posts'				=> \&home,
-		'/page:page'				=> \&home,		# Home pagination
+		# Home route
+		'/'					=> \&home,
+		# Home pagination		
+		'/page:page'				=> \&home,
 		
 		# Browse the archives
 		'/posts/:year'				=> \&archive,
@@ -72,18 +82,15 @@ package PerlSkeleton;
 		'/posts/:year/:month/:day'		=> \&archive,
 		'/posts/:year/:month/:day/page:page'	=> \&archive,
 		
+		# Post modification/creation
+		'/posts/:action'			=> \&post,
+		'/posts/:action/:year/:month/:day/:slug'=> \&post,
+		
 		# Read a page
 		'/posts/:year/:month/:day/:slug'	=> \&page,
 		
-		# Edit a page
-		'/edit/:year/:month/:day/:slug'		=> \&edit_page,
-		
-		'/new'					=> \&new_page,		# Create a page
-		'/save'					=> \&save_page,		# Save a page
-		
-		'/login'				=> \&login,		# User login
-		'/logout'				=> \&logout,		# User logout
-		'/changepass'				=> \&change_pass	# Change login password
+		# User actions
+		'/user/:account'			=> \&user
 	);
 	
 	
@@ -106,7 +113,7 @@ package PerlSkeleton;
 	# Routing substitutions for brevity
 	my %routesubs = (
 		# REST actions
-		':action'	=> '(?<action>new|edit|delete)',
+		':action'	=> '(?<action>new|edit|delete|save)',
 		
 		# Calendar markers
 		':year'		=> '(?<year>[2][0-9]{3})',	
@@ -120,7 +127,10 @@ package PerlSkeleton;
 		':page'		=> '(?<page>[1-9][0-9]{0,2})',
 		
 		# Account
-		':user'		=> '(?<user>[\w-]{2,30})',
+		':user'		=> '(?<user>[\w\-]{2,30})',
+		':pass'		=> '(?<pass>[\x20-\x7E]{50,255})',
+		':email'	=> '(?<email>[\x21-\x7E\.]{3,255})', # Not even gonna try
+		':account'	=> '(?<account>login|register|changepass|logout)',
 		
 		# Category
 		':category'	=> '(?<cat>[\w]{3,20})',
@@ -135,6 +145,8 @@ package PerlSkeleton;
 	# Cookie data
 	my %cookie;
 	
+	# Visitor signature
+	my $signature;
 	
 	
 	####		Page routes (per above)	####
@@ -169,6 +181,81 @@ package PerlSkeleton;
 		render( 'index', %template );
 	}
 	
+	# Do post things
+	sub post {
+		my ( $method, $path, %params ) = @_;
+		my $mode = $params{'action'} ? 
+				$params{'action'} : 'read';
+		
+		for ( $mode ) {
+			/new/ and do {
+				new_page( $method, $path, %params );
+				last;
+			};
+			
+			/edit/ and do {
+				if ( 
+					!$params{'year'}	|| 
+					!$params{'month'}	|| 
+					!$params{'day'}		|| 
+					!$params{'slug'}	|| 
+				) {
+					redir( '/' );
+				}
+				edit_page( $method, $path, %params );
+				last;
+			};
+			
+			/save/ and do {
+				save_page( $method, $path, %params );
+				last;
+			};
+			
+			# Default read
+		}
+		
+		print "Content-Type: text/html; charset=utf-8\n\n";
+		print "Hello $mode";
+	}
+	
+	# Do user things
+	sub user {
+		my ( $method, $path, %params ) = @_;
+		my $mode = $params{'account'} ? 
+				$params{'account'} : 'view';
+		for ( $mode ) {
+			/login/ and do {
+				login( $method, $path, %params );
+				last;
+			};
+			
+			/logout/ and do {
+				logout( $method, $path, %params );
+				last;
+			};
+			
+			/changepass/ and do {
+				change_pass( $method, $path, %params );
+				last;
+			};
+			
+			/register/ and do {
+				register( $method, $path, %params );
+				last;
+			};
+		}
+		
+		print "Content-Type: text/html; charset=utf-8\n\n";
+		print "Hello $mode";
+	}
+	
+	# Do profile things
+	sub profile {
+		my ( $method, $path, %params ) = @_;
+		
+		# TODO
+	}
+	
 	# Do post reading things
 	sub page {
 		my ( $method, $path, %params ) = @_;
@@ -181,11 +268,18 @@ package PerlSkeleton;
 			) 
 		);
 		
+		my $entry	= find_by_date( %params );
+		
+		# Load partial template
+		my $post_tpl	= load_template( '_post' );
+		
+		
+		
 		# Build reading page
 		my %template	= (
 			'title'		=> 'Reading a page',
 			'heading'	=> 'Viewing a content page',
-			'body'		=> '<p>Hello world</p>',
+			'body'		=> '<p>Hello world</p>' . $archives,
 			'meta'		=> meta_tags( %mtags )
 		);
 		
@@ -213,7 +307,7 @@ package PerlSkeleton;
 		my %template	= (
 			'title'		=> 'Archive',
 			'heading'	=> 'This is an archive page',
-			'body'		=> $out,
+			'body'		=> $out . ' ' . $archives,
 			'meta'		=> meta_tags( %mtags )
 		);
 		
@@ -224,6 +318,14 @@ package PerlSkeleton;
 	# Do new page things
 	sub new_page {
 		my ( $method, $path, %params ) = @_;
+		my $slug = $params{'slug'} ? 
+				$params{'slug'} : '';
+		
+		
+		# Post data was sent
+		if ( $method eq "post" ) {
+			save_page( $method, $path, %params );
+		}
 		
 		# Override robots follow
 		my %mtags	= 
@@ -239,7 +341,8 @@ package PerlSkeleton;
 		my %template	= (
 			'title'		=> 'Create a new page',
 			'heading'	=> 'Creating a new page',
-			'action'	=> '/save',
+			'action'	=> $path,
+			'post_slug'	=> $slug,
 			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
@@ -267,9 +370,10 @@ package PerlSkeleton;
 		my %template	= (
 			'title'		=> 'Edit a page',
 			'heading'	=> 'Editing a created page',
-			'page_title'	=> 'A test page',
-			'page_body'	=> 'Test content',
-			'page_pub'	=> '6/18/2016',
+			'post_title'	=> 'A test page',
+			'post_body'	=> 'Test content',
+			'post_pub'	=> '2015-09-24T12:00:30',
+			'post_slug'	=> 'rufflo',
 			'action'	=> '/save',
 			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
@@ -284,38 +388,52 @@ package PerlSkeleton;
 		my ( $method, $path, %params ) = @_;
 		
 		# Post data was sent
-		if ( $method eq "post" ) {
-			my %data	= form_data( 'post' );
-			
-			# Check anti-CSRFtoken
-			my $csrf	= field( 'csrf', %data );
-			if ( !verify_csrf( 'editpage', $path, $csrf ) ) {
-				redir( '/' );
-			}
-			
-			my $content	= field( 'body', %data );
-			my $title	= field( 'title', %data );
-			
-			# Merge any sent meta tags with default ones
-			my %mtags = 
-			( 
-				%common_meta, 
-				( robots => 'noindex, nofollow' ) 
-			);
-			
-			my %template	= (
-				'title'		=> 'Newly saved page',
-				'heading'	=> $title,
-				'meta'		=> meta_tags( %common_meta ),
-				'body'		=> $content
-			);
-			
-			send_cookie();
-			render( 'post', %template );
+		if ( $method ne "post" ) {
+			redir( '/' );
 		}
 		
+		my %data	= form_data( 'post' );
+		
+		# Check anti-CSRFtoken
+		my $csrf	= field( 'csrf', %data );
+		if ( !verify_csrf( 'editpage', $path, $csrf ) ) {
+			redir( '/' );
+		}
+		
+		my $content	= field( 'body', %data );
+		my $title	= field( 'title', %data );
+		my $slug	= field( 'slug', %data );
+		my $pubdate	= field( 'pubdate', %data );
+		
+		# Convert slug to proper format or generate from title
+		if ( $slug ) {
+			$slug = slugify( $slug );
+		} else {
+			$slug = slugify( $title );
+		}
+		
+		$content .= ' ' . $slug;
+		
+		# Merge any sent meta tags with default ones
+		my %mtags = 
+		( 
+			%common_meta, 
+			( robots => 'noindex, nofollow' ) 
+		);
+		
+		my %template	= (
+			'title'		=> 'Newly saved page',
+			'heading'	=> $title,
+			'meta'		=> meta_tags( %common_meta ),
+			'body'		=> $content
+		);
+		
+		send_cookie();
+		render( 'post', %template );
+		
+		
 		# After saving the page, redirect
-		redir( '/' );
+		#redir( '/' );
 	}
 	
 	# Do logging in things
@@ -332,6 +450,27 @@ package PerlSkeleton;
 			# If anti-CSRF token failed, redirect to home
 			if ( !verify_csrf( 'loginpage', $path, $csrf ) ) {
 				redir( '/' );
+			}
+			
+			my $missing	= '';
+			
+			my $username	= field( 'username', %data );
+			my $password	= field( 'password', %data );
+			if ( !$username ) {
+				$missing .= 'username, ';
+			}
+			if ( !$password ) {
+				$missing .= 'password, ';
+			}
+			
+			$missing = trim( $missing );
+			chomp( $missing );
+			
+			if ( $missing ) {
+				print "Content-Type: text/html; charset=utf-8\n\n";
+				print "The following required fields were invalid:\n";
+				print $missing;
+				exit( 0 );
 			}
 			
 			# TODO check login
@@ -353,7 +492,7 @@ package PerlSkeleton;
 		my %template	= (
 			'title'		=> 'Login',
 			'heading'	=> 'Site access',
-			'action'	=> '/login',
+			'action'	=> $path,
 			'csrf'		=> $csrf,
 			'meta'		=> meta_tags( %mtags )
 		);
@@ -362,11 +501,99 @@ package PerlSkeleton;
 		render( 'login', %template );
 	}
 	
+	# Do register in things
+	sub register {
+		my ( $method, $path, %params ) = @_;
+		
+		# Login info was sent
+		if ( $method eq "post" ) {
+			
+			# Process login
+			my %data	= form_data( 'post' );
+			my $csrf	= field( 'csrf', %data );
+			
+			# If anti-CSRF token failed, redirect to home
+			if ( !verify_csrf( 'registerpage', $path, $csrf ) ) {
+				redir( '/' );
+			}
+			
+			my $terms	= field( 'terms', %data );
+			if( !$terms ) {
+				print "Content-Type: text/html; charset=utf-8\n\n";
+				print "Terms agreement required";
+				exit( 0 );
+			}
+			
+			my $missing	= '';
+			
+			my $username	= field( 'username', %data );
+			my $password	= field( 'password', %data );
+			my $email	= field( 'email', %data );
+			
+			if ( !$username =~ m/^$routesubs{':user'}$/ ) {
+				$missing .= 'username, ';
+			}
+			
+			if ( !$password =~ m/^$routesubs{':pass'}$/ ) {
+				$missing .= 'password, ';
+			}
+			
+			if ( !$email ) {
+				$missing .= 'email, ';
+			}
+			
+			$missing = trim( $missing );
+			chomp( $missing );
+			
+			if ( $missing ) {
+				print "Content-Type: text/html; charset=utf-8\n\n";
+				print "The following required fields were invalid:\n";
+				print $missing;
+				exit( 0 );
+			}
+			
+			print "Content-Type: text/html; charset=utf-8\n\n";
+			print "Processed\n";
+			exit( 0 );
+			
+			# TODO Register
+		}
+	
+		# Everything else,  display login form
+		my %mtags	= 
+		( 
+			%common_meta, 
+			( robots => 'noindex, nofollow' ) 
+		);
+		
+		# Anti-CSRF token
+		my $csrf	= gen_csrf( 'registerpage', $path );
+		
+		# TODO access login data
+		
+		# Build login page
+		my %template	= (
+			'title'		=> 'Registe',
+			'heading'	=> 'Register',
+			'action'	=> '/user/register',
+			'csrf'		=> $csrf,
+			'meta'		=> meta_tags( %mtags )
+		);
+				
+		send_cookie();
+		render( 'register', %template );
+	}
+	
 	# Do logging out things
 	sub logout {
 		my ( $method, $path, %params ) = @_;
+		my %auth = (
+			'auth' => ''
+		);
 		
+		set_cookie( 'auth', %auth );
 		send_cookie();
+		redir( '/' );
 	}
 	
 	# Do password changing things
@@ -471,7 +698,6 @@ package PerlSkeleton;
 	# URL path router
 	sub router {
 		my $path	= shift;
-		my $matches;
 		
 		# Iterate through given routes
 		foreach my $route ( sort keys %routes ) {
@@ -486,7 +712,7 @@ package PerlSkeleton;
 				
 				# Call designated handler
 				$routes{$route}->( 
-					$method, $filter, %params 
+					$method, $path, %params 
 				);
 				
 				# Break out of search
@@ -506,127 +732,6 @@ package PerlSkeleton;
 	}
 	
 	
-	
-	####		HTML Rendering		####
-	
-	# Print meta tags
-	sub meta_tags {
-		my ( %tags )	= @_;
-		my $t = '';
-		foreach my $k ( sort keys %tags ) {
-			$t .= meta_tag( $k, $tags{$k} );
-		}
-		return $t;
-	}
-	
-	# Print individual meta tag
-	sub meta_tag {
-		my ( $name, $value ) = @_;
-		my %at = (
-			name	=> $name,
-			content	=> $value
-		);
-		return tag( 'meta', undef, 1, 1, %at );
-	}
-	
-	# Create heading tag
-	sub h {
-		my ( $value, $n, %attr ) = @_;
-		return tag( "h$n", $value, 0, 1, %attr );
-	}
-	
-	# Paragraph tag
-	sub p {
-		my ( $value, %attr ) = @_;
-		return tag( 'p', $value, 0, 1, %attr );
-	}
-	
-	# Anchor tag
-	sub a {
-		my ( $value, $title, %attr ) = @_;
-		if ( !defined( $title ) ) {
-			$title = '';
-		}
-		my %at = ( %attr, (
-			href	=> $value,
-			title	=> $title
-		) );
-		return tag( 'a', undef, 1, 0, %at );
-	}
-	
-	# Image tag
-	sub img {
-		my ( $value, $alt, %attr ) = @_;
-		if ( !defined( $alt ) ) {
-			$alt = '';
-		}
-		my %at = ( %attr, (
-			src	=> $value,
-			alt	=> $alt
-		) );
-		
-		return tag( 'img', undef, 1, 0, %at );
-	}
-	
-	# Create a generic HTML tag
-	sub tag {
-		my ( $name, $value, $close, $br, %attr ) = @_;
-		my $out = "";
-		
-		if ( $close ) { # Self closing
-			
-			# Merge the value with attributes, if it's there
-			if ( defined( $value ) ) {
-				my %attr = 
-				(  %attr, ( value => $value ) );
-			}
-			
-			my $at = attr( %attr );
-			$out = "<$name$at/>";
-			
-		} else {
-			my $at = attr( %attr );
-			$out = "<$name$at>$value</$name>";
-		}
-		
-		if ( $br ) {
-			return "$out\n";
-		}
-		return $out;
-	}
-	
-	# Create a selectbox with options and optional selected item
-	# TODO
-	sub select {
-		my ( $name, $selected, %options, %attr ) = @_;
-		foreach my $k ( keys %options ) {
-			
-		}
-	}
-	
-	# Print attributes
-	sub attr {
-		my ( %attr )	= @_;
-		if  ( !%attr ) {
-			return '';
-		}
-		
-		my $out = "";
-		
-		foreach my $k ( sort keys %attr ) {
-			if ( 'required' eq $k ) {
-				$out .= " required";
-				next;
-			}
-			$out .= " $k=\"$attr{$k}\"";
-		}
-		
-		return $out;
-	}
-	
-	
-	
-	
 	####		File handling		####
 	
 	# Get a specific setting
@@ -642,8 +747,18 @@ package PerlSkeleton;
 	
 	# Find posts by date
 	sub find_by_date {
-		my %params	= shift;
+		my ( %params )	= @_;
 		
+		
+		my $out = '<p>';
+		foreach my $k ( sort keys %params ) {
+			$out .= $k . ' = ' . $params{$k};
+			$out .= "; ";
+		}
+		
+		$out .= "</p>";
+		
+		return $out;
 	}
 	
 	# Settings file
@@ -832,8 +947,6 @@ package PerlSkeleton;
 		return undef;
 	}
 	
-	
-	
 	# Get cookie data sent by the user (app specific)
 	sub cookie_data {
 		my $name	= shift;
@@ -943,8 +1056,6 @@ package PerlSkeleton;
 		return %data;
 	}
 	
-	
-	
 	# Send cookie data to the user
 	# http://www.comptechdoc.org/independent/web/cgi/perlmanual/perlcookie.html
 	sub send_cookie {
@@ -955,19 +1066,25 @@ package PerlSkeleton;
 		
 		my $exp = gmtime( time() + $cookiexp );
 		foreach my $k ( keys %cookie ) {
-			print "Set-Cookie: $k=$cookie{$k}; path=$path; expires=$exp;\n";
+			print 
+			"Set-Cookie: $k=$cookie{$k}; path=$path; expires=$exp;\n";
 		}
 	}
 	
 	# Visitor signature
 	sub signature {
+		if ( $signature ) {
+			return $signature;
+		}
 		my $ua		= $opts{'ua'};		# User agent string
 		my $addr	= $opts{'addr'};	# IP address
 		my $lang	= $opts{'lang'};	# Accept language
 		my $dnt		= $opts{'dnt'};		# Do Not Track
 		
-		my $hash = Digest::SHA::sha256_hex( $ua . $addr . $lang . $dnt );
-		return unpack( "H*", $hash );
+		$signature	= 
+		Digest::SHA::sha256_hex( $ua . $addr . $lang . $dnt );
+		
+		return $signature;
 	}
 	
 	# Filter the request method to a small white list
@@ -1010,13 +1127,20 @@ package PerlSkeleton;
 		
 		# Get the form nonce and expiration from the cookie
 		my %data	= get_cookie( $form . 'form' );
+		
+		# Reset cookie after verification
+		set_cookie( 
+			$form . 'form', 
+			( 'nonce' => '', 'exp' => 0 ) 
+		);
+		
 		if ( !%data ) {
 			return 0;
 		}
 		
 		# Empty values?
 		if ( !$data{'nonce'} || !$data{'exp'} ) {
-			return 1;
+			return 0;
 		}
 		
 		# Check for anti-CSRF token expiration
@@ -1058,10 +1182,10 @@ package PerlSkeleton;
 		);
 		
 		# Convert to hex
-		$hash		= unpack( "H*", $hash );
+		my $password	= unpack( "H*", $hash );
 		
 		# Package constituents
-		return join( '$', $salt, $rounds, $passlen, $hash );
+		return join( '$', $salt, $rounds, $passlen, $password );
 	}
 	
 	# Verify hashed password
@@ -1096,10 +1220,10 @@ package PerlSkeleton;
 			$rounds, $passlen 
 		);
 		
-		$hash		= unpack( "H*", $hash );
+		my $password	= unpack( "H*", $hash );
 		
 		# Sent password hash matches stored hash
-		if ( $hash eq $raw ) {
+		if ( $password eq $raw ) {
 			return 1;
 		}
 		
@@ -1184,11 +1308,34 @@ package PerlSkeleton;
 	# Trim text
 	sub trim {
 		my $data = shift;
+		if ( !$data ) {
+			return '';
+		}
+		
 		$data	=~ s/^\s+//;
 		$data	=~ s/\s+$//;
 		
 		return $data;
 	}
+	
+	# Create a URL slug
+	# http://stackoverflow.com/a/4009519
+	sub slugify {
+		my ( $txt ) = @_;
+		
+		$txt	= Unicode::Normalize::NFKD( $txt );	# Normalize the Unicode string
+		$txt	=~ tr/\000-\177//cd;	# Strip non-ASCII characters (>127)
+		$txt	=~ s/[^\w\s-]//g;	# Remove all characters that are not word characters (includes _), spaces, or hyphens
+		$txt	=~ s/^\s+|\s+$//g;	# Trim whitespace from both ends
+		$txt	= lc( $txt );		# Lowercase
+		$txt	=~ s/[-\s]+/-/g;        # Replace all occurrences of spaces and hyphens with a single hyphen
+		
+		return $txt;
+	}
+	
+	
+	
+	
 	
 	####		Templates		####
 	
@@ -1198,7 +1345,7 @@ package PerlSkeleton;
 		my $tpl		= load_template( $name, $ctheme );
 		my $html	= placeholders( $tpl, %data );
 		
-		print "Content-type: text/html\n\n";
+		print "Content-type: text/html; charset=utf-8\n\n";
 		print $html;
 		
 		exit( 0 );
@@ -1232,6 +1379,126 @@ package PerlSkeleton;
 		
 		close $fh;
 		return $tpl;
+	}
+	
+	
+	
+	
+	####		HTML Handling		####
+	
+	# Print meta tags
+	sub meta_tags {
+		my ( %tags )	= @_;
+		my $t = '';
+		foreach my $k ( sort keys %tags ) {
+			$t .= meta_tag( $k, $tags{$k} );
+		}
+		return $t;
+	}
+	
+	# Print individual meta tag
+	sub meta_tag {
+		my ( $name, $value ) = @_;
+		my %at = (
+			name	=> $name,
+			content	=> $value
+		);
+		return tag( 'meta', undef, 1, 1, %at );
+	}
+	
+	# Create heading tag
+	sub h {
+		my ( $value, $n, %attr ) = @_;
+		return tag( "h$n", $value, 0, 1, %attr );
+	}
+	
+	# Paragraph tag
+	sub p {
+		my ( $value, %attr ) = @_;
+		return tag( 'p', $value, 0, 1, %attr );
+	}
+	
+	# Anchor tag
+	sub a {
+		my ( $value, $title, %attr ) = @_;
+		if ( !defined( $title ) ) {
+			$title = '';
+		}
+		my %at = ( %attr, (
+			href	=> $value,
+			title	=> $title
+		) );
+		return tag( 'a', undef, 1, 0, %at );
+	}
+	
+	# Image tag
+	sub img {
+		my ( $value, $alt, %attr ) = @_;
+		if ( !defined( $alt ) ) {
+			$alt = '';
+		}
+		my %at = ( %attr, (
+			src	=> $value,
+			alt	=> $alt
+		) );
+		
+		return tag( 'img', undef, 1, 0, %at );
+	}
+	
+	# Create a generic HTML tag
+	sub tag {
+		my ( $name, $value, $close, $br, %attr ) = @_;
+		my $out = "";
+		
+		if ( $close ) { # Self closing
+			
+			# Merge the value with attributes, if it's there
+			if ( defined( $value ) ) {
+				my %attr = 
+				(  %attr, ( value => $value ) );
+			}
+			
+			my $at = attr( %attr );
+			$out = "<$name$at/>";
+			
+		} else {
+			my $at = attr( %attr );
+			$out = "<$name$at>$value</$name>";
+		}
+		
+		if ( $br ) {
+			return "$out\n";
+		}
+		return $out;
+	}
+	
+	# Create a selectbox with options and optional selected item
+	# TODO
+	sub select {
+		my ( $name, $selected, %options, %attr ) = @_;
+		foreach my $k ( keys %options ) {
+			
+		}
+	}
+	
+	# Print attributes
+	sub attr {
+		my ( %attr )	= @_;
+		if  ( !%attr ) {
+			return '';
+		}
+		
+		my $out = "";
+		
+		foreach my $k ( sort keys %attr ) {
+			if ( 'required' eq $k ) {
+				$out .= " required";
+				next;
+			}
+			$out .= " $k=\"$attr{$k}\"";
+		}
+		
+		return $out;
 	}
 }
 
