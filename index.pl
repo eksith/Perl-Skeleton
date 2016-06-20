@@ -105,16 +105,28 @@ package PerlSkeleton;
 	
 	# Routing substitutions for brevity
 	my %routesubs = (
+		# REST actions
+		':action'	=> '(?<action>new|edit|delete)',
+		
 		# Calendar markers
-		':year'		=> '(?<year>\d{4})',	
-		':month'	=> '(?<month>\d{2})',
-		':day'		=> '(?<day>\d{2})',
+		':year'		=> '(?<year>[2][0-9]{3})',	
+		':month'	=> '(?<month>[0-1][0-9]{1})',
+		':day'		=> '(?<day>[0-3][0-9]{1})',
 		
 		# Page slug (search engine friendly string)
 		':slug'		=> '(?<slug>\w{1,80})',
 		
 		# Pagination number
-		':page'		=> '(?<page>\d+)'
+		':page'		=> '(?<page>[1-9][0-9]{0,2})',
+		
+		# Account
+		':user'		=> '(?<user>[\w-]{2,30})',
+		
+		# Category
+		':category'	=> '(?<cat>[\w]{3,20})',
+		
+		# Everything
+		'*'		=> '(?<all>.+?)'
 	);
 	
 	# Configuration settings
