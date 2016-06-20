@@ -464,12 +464,13 @@ package PerlSkeleton;
 		# Iterate through given routes
 		foreach my $route ( sort keys %routes ) {
 			my $filter =  filter_route( $route );
+			my %params;	# Placeholder vars
 			
 			# If we found this route has a handler
 			if ( $path =~ m/^$filter(\/)?$/i ) {
 				
-				# Pass matches into parameters
-				my %params	= parse_url( $filter );
+				# Push named parameters into capture hash
+				$params{$_} = $+{$_} for keys %+;
 				
 				# Call designated handler
 				$routes{$route}->( 
@@ -490,22 +491,6 @@ package PerlSkeleton;
 		my $route	= shift;
 		$route =~ s/(\:\w+)/$routesubs{$1}/gi;
 		return $route;
-	}
-	
-	# URL parameters
-	# Map the named captures into a key => value hash
-	# https://doc.perl6.org/language/regexes#Subrules
-	sub parse_url {
-		my $route	= shift;
-		my %params	= ();
-		
-		# Hacking the match object into a hash
-		# https://doc.perl6.org/language/regexes#Named_captures
-		#if ( $uri ~~ m/^$route(\/)?$/i ) {
-			#my %params = $/.hash;
-			#return %params;
-		#}
-		return %params;
 	}
 	
 	
