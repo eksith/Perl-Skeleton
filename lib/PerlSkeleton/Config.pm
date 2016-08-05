@@ -66,9 +66,9 @@ package PerlSkeleton::Config;
 		# REST actions
 		':action'	=> '(?<action>new|edit|delete|save)',
 		
-		# Calendar markers (2xxx, 01-12, 01-3x)
+		# Calendar markers (2xxx, 01-1x, 01-3x)
 		':year'		=> '(?<year>[2][0-9]{3})',	
-		':month'	=> '(?<month>[0-1][0-2]{1})',
+		':month'	=> '(?<month>[0-1][0-9]{1})',
 		':day'		=> '(?<day>[0-3][0-9]{1})',
 		
 		# Page slug (search engine friendly string)
