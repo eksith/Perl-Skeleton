@@ -265,7 +265,7 @@ package PerlSkeleton::Routes;
 			( robots => 'noindex, nofollow' ) 
 		);
 		
-		my $csrf	= gen_csrf( 'editpage', '/save' );
+		my $csrf	= pmain::gen_csrf( 'editpage', '/save' );
 		
 		# TODO Find page to edit
 		
@@ -502,7 +502,7 @@ package PerlSkeleton::Routes;
 		
 		# Anti-CSRF token
 		my $csrf	= 
-		PerlSkeleton::gen_csrf( 'registerpage', '/user/register' );
+		pmain::gen_csrf( 'registerpage', '/user/register' );
 		
 		# TODO access login data
 		
@@ -527,7 +527,7 @@ package PerlSkeleton::Routes;
 		my $csrf	= pmain::field( 'csrf', %data );
 		
 		# If anti-CSRF token failed, redirect to home
-		if ( !PerlSkeleton::verify_csrf( 
+		if ( !pmain::verify_csrf( 
 			'registerpage', $path, $csrf 
 		) ) {
 			pmain::redir( '/' );
