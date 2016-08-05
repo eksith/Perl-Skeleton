@@ -122,11 +122,12 @@ package PerlSkeleton::Main {
 			/DELETE/	and do { $out = 'delete';	last; };
 			/PUT/		and do { $out = 'put';		last; };
 			/PATCH/		and do { $out = 'patch';	last; };
-			
-			# Use get if all else failed
-			$out = 'get';
 		}
-		return ( $out );
+		
+		if ( $out ne '' ) {
+			return ( $out );
+		}
+		die( 'Method not allowed' );
 	}
 	
 	# Get a specific setting
