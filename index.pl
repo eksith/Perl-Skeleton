@@ -14,8 +14,6 @@ use utf8;
 
 # Package modules
 use lib 'lib/';
-use PerlSkeleton::Config;
-use PerlSkeleton::Html;
 use PerlSkeleton::Main;
 
 
