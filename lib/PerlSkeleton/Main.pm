@@ -122,12 +122,15 @@ package PerlSkeleton::Main {
 			/DELETE/	and do { $out = 'delete';	last; };
 			/PUT/		and do { $out = 'put';		last; };
 			/PATCH/		and do { $out = 'patch';	last; };
+			/GET/		and do { $out = 'get';		last; };
 		}
 		
 		if ( $out ne '' ) {
 			return ( $out );
 		}
-		die( 'Method not allowed' );
+		
+		print 'Method not allowed';
+		exit(0);
 	}
 	
 	# Get a specific setting
