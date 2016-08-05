@@ -92,7 +92,7 @@ package PerlSkeleton::Main {
 				);
 				
 				# Break out of search
-				return;
+				last;
 			}
 		}
 		
