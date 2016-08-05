@@ -642,23 +642,6 @@ package PerlSkeleton::Main {
 		# Field wasn't sent
 		return undef;
 	}
-	
-	
-	
-	####		File handling		####
-	
-	# Browse for posts with a starting date
-	sub browse {
-		my ( %start, $limit, $page ) = @_;
-		# TODO
-	}
-	
-	# Look for posted comments on this post
-	sub comments {
-		my ( %path, $limit, $page ) = @_;
-		# TODO
-	}
-	
 }
 
 1;
