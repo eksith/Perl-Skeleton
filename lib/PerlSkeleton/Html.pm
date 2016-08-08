@@ -13,24 +13,12 @@ use PerlSkeleton::Config;
 
 # Aliasing
 *config:: 	= *PerlSkeleton::Config::;
+*util:: 	= *PerlSkeleton::Util::;
 }
 
 # PerlSkeleton Meta tag and HTML Handling and filtering
 package PerlSkeleton::Html;
 {
-	
-	# Trim text
-	sub trim {
-		my $data = shift;
-		if ( !$data ) {
-			return '';
-		}
-		
-		$data	=~ s/^\s+//;
-		$data	=~ s/\s+$//;
-		
-		return $data;
-	}
 	
 	# Create a URL slug
 	# http://stackoverflow.com/a/4009519
@@ -48,57 +36,6 @@ package PerlSkeleton::Html;
 		$txt	=~ s/[-\s]+/-/g;        # Replace all occurrences of spaces and hyphens with a single hyphen
 		
 		return $txt;
-	}
-	
-	# Clean a parameter
-	sub clean_param {
-		my $value	= shift;
-		if ( !$value ) {
-			return '';
-		}
-			
-		# Strip null bytes
-		$value	=~ s/\x00$//;
-		
-		# Replace '+' with space
-		$value	=~ tr/+/ /;
-		
-		# Hex decode
-		$value	=~ s/%(..)/pack("C", hex($1))/eg;
-		
-		# Strip non-printable chars except spaces
-		$value	=~ s/[[:^print:]]//g;
-		
-		return trim( $value );
-	}
-	
-	# Clean a parameter name
-	sub clean_name {
-		my $value	= shift;
-		if ( !$value ) {
-			return '';
-		}
-		
-		# Strip non-printable chars including spaces
-		$value =~ s/[[:^print:]\s]//g;
-		
-		return trim( $value );
-	}
-	
-	# Generic clean
-	sub scrub {
-		my $value	= shift;
-		if ( !$value ) {
-			return '';
-		}
-			
-		# Strip null bytes
-		$value	=~ s/\x00$//;
-		
-		# Strip non-printable chars except spaces
-		$value	=~ s/[[:^print:]]//g;
-		
-		return trim( $value );
 	}
 	
 	# Render a given template
@@ -303,9 +240,9 @@ package PerlSkeleton::Html;
 	# https://github.com/eksith/Zine/blob/master/index.php#L866
 	sub html_links {
 		my ( $img, $txt, $url ) = @_;
-		$img = scrub( $img );
-		$url = scrub( $url );
-		$txt = scrub( $txt );
+		$img = util::scrub( $img );
+		$url = util::scrub( $url );
+		$txt = util::scrub( $txt );
 		
 		if ( $img ) {
 			return sprintf( "<img src='%s' alt='%s' />", $url, $txt );
