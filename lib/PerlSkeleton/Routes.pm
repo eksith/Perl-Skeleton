@@ -508,7 +508,7 @@ package PerlSkeleton::Routes;
 		
 		# Build login page
 		my %template	= (
-			'title'		=> 'Registe',
+			'title'		=> 'Register',
 			'heading'	=> 'Register',
 			'action'	=> '/user/register',
 			'csrf'		=> $csrf,
