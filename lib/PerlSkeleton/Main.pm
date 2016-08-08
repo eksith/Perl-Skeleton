@@ -7,8 +7,6 @@ use warnings;
 use utf8;
 
 # Required modules
-use Digest::SHA qw( hmac_sha1 sha256_hex );		# Needed for pbkdf2 and checksums
-use MIME::Base64 qw( encode_base64 decode_base64 );	# Needed for safe packaging
 use Time::Local qw( timelocal );			# Needed for calendar and timestamps
 use Encode qw ( encode decode );			# Needed for character encoding
 
@@ -24,7 +22,7 @@ use PerlSkeleton::Routes;
 *config:: 	= *PerlSkeleton::Config::;
 *html:: 	= *PerlSkeleton::Html::;
 *routes::	= *PerlSkeleton::Routes::;
-
+*util:: 	= *PerlSkeleton::Util::;
 }
 
 package PerlSkeleton::Main {
@@ -74,6 +72,7 @@ package PerlSkeleton::Main {
 		if ( !$path || !$method ) {
 			return;
 		}
+		my $found = 0;
 		
 		# Iterate through given routes
 		foreach my $route ( sort keys %routes::paths ) {
@@ -82,6 +81,7 @@ package PerlSkeleton::Main {
 			
 			# If we found this route has a handler
 			if ( $path =~ m/^$filter(\/)?$/i ) {
+				$found = 1;
 				
 				# Push named parameters into capture hash
 				$params{$_} = $+{$_} for keys %+;
@@ -96,6 +96,10 @@ package PerlSkeleton::Main {
 			}
 		}
 		
+		if ( $found ) {
+			return;
+		}
+		
 		# Fallback to not found
 		routes::not_found( $method, $path );
 	}
@@ -107,8 +111,9 @@ package PerlSkeleton::Main {
 			return '';
 		}
 		
-		return 
 		$route =~ s/(\:\w+)/$config::routesubs{$1}/gi;
+		
+		return $route;
 	}
 	
 	
@@ -152,9 +157,9 @@ package PerlSkeleton::Main {
 	# Generate an anti-cross-site request forgery token
 	sub gen_csrf {
 		my ( $form, $path ) = @_;
-		my $salt	= rnd( 6 );
+		my $salt	= util::rnd( 6 );
 		my %cdata	= (
-			'nonce'	=> rnd( 6 ),
+			'nonce'	=> util::rnd( 6 ),
 			'exp'	=> time() + $config::formexp
 		);
 		
@@ -229,15 +234,13 @@ package PerlSkeleton::Main {
 		my ( $pass, $salt ) = @_;
 		
 		if ( !defined( $salt ) || $salt eq '' ) {
-			$salt	= rnd( $config::ssize );
+			$salt	= util::rnd( $config::ssize );
 		}
 		
 		# Generate hash
 		my $hash	= 
-		pbkdf2( 
-			\&Digest::SHA::hmac_sha1, $pass, $salt, 
-			$config::rounds, 
-			$config::passlen 
+		util::genpbk( 
+			$pass, $salt, $config::rounds, $config::passlen 
 		);
 		
 		# Convert to hex
@@ -279,9 +282,8 @@ package PerlSkeleton::Main {
 		
 		# Create a hash with the given password
 		my $hash	= 
-		pbkdf2( 
-			\&Digest::SHA::hmac_sha1, $pass, $salt, 
-			$passlen 
+		util::genpbk( 
+			$pass, $salt, $rounds, $passlen 
 		);
 		
 		my $password	= unpack( "H*", $hash );
@@ -293,72 +295,6 @@ package PerlSkeleton::Main {
 		
 		# Defaults to false
 		return 0;
-	}
-	
-	# Password key derivation function
-	# Initial function  Jochen Hoenicke <hoenicke@gmail.com> from the
-	# Palm::Keyring perl module.  Found on the PerlMonks Forum
-	# http://www.perlmonks.org/?node_id=631963
-	sub pbkdf2 {
-		my ( $prf, $pass, $salt, $iter, $len ) = @_;
-		my ( $k, $t, $u, $ui, $i );
-		
-		$t = '';
-		for ( $k = 1; length( $t ) <  $len; $k++ ) {
-			$u = $ui = 
-			&$prf( 
-				$salt.pack( 'N', $k ), $pass 
-			);
-			
-			for ( $i = 1; $i < $iter; $i++ ) {
-				$ui	= &$prf( $ui, $pass );
-				$u	^= $ui;
-			}
-			$t .= $u;
-		}
-		
-		return substr( $t, 0, $len );
-	}
-	
-	# Generate random data
-	sub rnd {
-		my $len	= shift;
-		my $os	= $^O;
-		
-		if ( $os eq 'MSWin32' ) {
-			return win_rnd( $len );
-		}
-		
-		return nix_rnd( $len );
-	}
-	
-	# Random data on a *nix machine
-	# http://rosettacode.org/wiki/Random_number_generator_(device)
-	sub nix_rnd {
-		my $len = shift;
-		my $dev = '/dev/urandom'; # Read from random device
-		
-		# Always fail when entropy source cannot be found
-		open my $in, "<:raw", $dev
-			or die "Can't open random device";
-		
-		sysread $in, my $rand, 4 * $len;
-		return unpack( 'H*', $rand );
-	}
-	
-	# Random data on Windows
-	sub win_rnd {
-		my $len = shift;
-		# Workaround for lack of random device access
-		# http://stackoverflow.com/a/10336772
-		my $rand = sprintf( "%08X", 
-				( rand( 0x8000 ) << 17 ) + 
-				( rand( 0x8000 ) << 2 ) + 
-				rand( 0b100 )
-			);
-		
-		$rand = substr( $rand, 0, $len );
-		return unpack( 'H*', $rand );
 	}
 	
 	# Redirect and end script execution
@@ -387,9 +323,9 @@ package PerlSkeleton::Main {
 			# Each k/v pair
 			my ( $name, $value ) = split( /=/, $_, 2 );
 			
-			# PerlSkeleton::Html::scrub cookie data
-			$name	= html::clean_name( $name );
-			$value	= html::clean_param( $value );
+			# PerlSkeleton::Util::scrub cookie data
+			$name	= util::clean_name( $name );
+			$value	= util::clean_param( $value );
 			
 			if ( !$name ) {
 				next;
@@ -410,7 +346,7 @@ package PerlSkeleton::Main {
 		}
 		
 		# Basic clean
-		$c	= html::scrub( $c );
+		$c	= util::scrub( $c );
 		
 		# Separate cookie data
 		my @data = split( "[;,] ?", $c );
@@ -434,11 +370,9 @@ package PerlSkeleton::Main {
 		
 		# Per key/value pair checksum with user signature
 		my $check		= 
-		Digest::SHA::sha256_hex( $raw . signature() ) ;
+		util::sha256( $raw . signature() ) ;
 		
-		$raw			= 
-		MIME::Base64::encode_base64( $raw, '' );
-		
+		$raw			= util::base64_encode( $raw );
 		$cookie{$name}		= join( '|', $check, $raw );
 	}
 	
@@ -458,11 +392,11 @@ package PerlSkeleton::Main {
 			}
 			
 			$raw			= 
-			MIME::Base64::decode_base64( $raw );
+			util::base64_decode( $raw );
 			
 			# Verify checksum against current user signature
 			my $verify		= 
-			Digest::SHA::sha256_hex( $raw . signature() );
+			util::sha256( $raw . signature() );
 			
 			# Check cookie checksum
 			if ( $check ne $verify ) {
@@ -476,7 +410,7 @@ package PerlSkeleton::Main {
 				
 				# Extract key value pairs
 				my ( $k, $v ) = split( /=/, $_ );
-				$data{$k} = html::scrub( $v );
+				$data{$k} = util::scrub( $v );
 			}
 		}
 		return %data;
@@ -508,7 +442,7 @@ package PerlSkeleton::Main {
 		my $dnt		= $config::opts{'dnt'};	# Do Not Track
 		
 		$signature	= 
-		Digest::SHA::sha256_hex( $ua . $addr . $lang . $dnt );
+		util::sha256( $ua . $addr . $lang . $dnt );
 		
 		return $signature;
 	}
@@ -605,9 +539,9 @@ package PerlSkeleton::Main {
 		foreach my $data ( @sent ) {
 			my ( $name, $value ) = split( /=/, $data );
 			
-			# PerlSkeleton::Html::scrub
-			$name	= html::clean_name( $name );
-			$value	= html::clean_param( $value );
+			# PerlSkeleton::Util cleaning
+			$name	= util::clean_name( $name );
+			$value	= util::clean_param( $value );
 			
 			# Take care of possible duplicate values
 			if ( exists( $parsed{$name} ) ) {
