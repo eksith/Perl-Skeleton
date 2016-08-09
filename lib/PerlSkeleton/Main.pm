@@ -37,6 +37,9 @@ package PerlSkeleton::Main {
 	# Visitor signature
 	our $signature;
 	
+	# Raw content sent by the visitor
+	my $raw_data	= '';
+	
 	####		Core functions		####
 	
 	# Initialization
@@ -62,6 +65,7 @@ package PerlSkeleton::Main {
 		
 		# Load any cookie data
 		cookie_data();
+		raw_content();
 		
 		# Call router
 		router( $uri, $method );
@@ -180,10 +184,10 @@ package PerlSkeleton::Main {
 		my %data	= get_cookie( $form . 'form' );
 		
 		# Reset cookie after verification
-		set_cookie( 
-			$form . 'form', 
-			( 'nonce' => '', 'exp' => 0 ) 
-		);
+		#set_cookie( 
+		#	$form . 'form', 
+		#	( 'nonce' => '', 'exp' => 0 ) 
+		#);
 		
 		if ( !%data ) {
 			return 0;
@@ -460,6 +464,12 @@ package PerlSkeleton::Main {
 	# Raw data sent by the user
 	# http://www.perlmonks.org/?node_id=135323
 	sub raw_content {
+		if ( $raw_data ne '' ) {
+			return $raw_data;
+		}
+		
+		my $len		= 0;
+		my $raw;
 		
 		# Require content length
 		if ( !$config::opts{'clen'} ) {
@@ -467,18 +477,12 @@ package PerlSkeleton::Main {
 				%config::opts, 
 				( clen => $config::maxclen ) 
 			);
-		}
-		
-		if ( 
+		} elsif ( 
 			$config::opts{'clen'} > 
 			$config::maxclen 
 		) {
-			return '';
+			return $raw_data;
 		}
-		
-		my $data	= '';
-		my $len		= 0;
-		my $raw;
 		
 		# Read user input in chunks up to maximum content length
 		while( read( STDIN, $raw, $config::rblock ) ) {
@@ -489,11 +493,11 @@ package PerlSkeleton::Main {
 			) {
 				die( 'Content exceeded' );
 			}
-			$data	.= $raw;
-			$len	+= $config::rblock;
+			$raw_data	.= $raw;
+			$len		+= $config::rblock;
 		}
 		
-		return html::trim( $data );
+		return util::trim( $raw_data );
 	}
 	
 	# Form data
@@ -544,6 +548,10 @@ package PerlSkeleton::Main {
 			$name	= util::clean_name( $name );
 			$value	= util::clean_param( $value );
 			
+			if ( $name eq '' ) {
+				next;
+			}
+			
 			# Take care of possible duplicate values
 			if ( exists( $parsed{$name} ) ) {
 				
@@ -552,7 +560,7 @@ package PerlSkeleton::Main {
 				$parsed{$name}{$size} = $value;
 			} else {
 				# No duplicates yet, use zero as the key
-				$parsed{$name} = ( { 0 => $value } );
+				$parsed{$name} =  { 0 => $value };
 			}
 		}
 		
