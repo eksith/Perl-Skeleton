@@ -17,6 +17,7 @@ use lib '.';
 use PerlSkeleton::Config;
 use PerlSkeleton::Html;
 use PerlSkeleton::Routes;
+use PerlSkeleton::Util;
 
 # Aliasing ( for sanity )
 *config:: 	= *PerlSkeleton::Config::;
@@ -323,7 +324,7 @@ package PerlSkeleton::Main {
 			# Each k/v pair
 			my ( $name, $value ) = split( /=/, $_, 2 );
 			
-			# PerlSkeleton::Util::scrub cookie data
+			# PerlSkeleton::Util clean cookie data
 			$name	= util::clean_name( $name );
 			$value	= util::clean_param( $value );
 			
