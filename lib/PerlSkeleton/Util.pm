@@ -12,6 +12,17 @@ use utf8;
 # Utilities and helpers
 package PerlSkeleton::Util;
 {
+	# Trim empty spaces from both ends
+	sub trim {
+		my $txt = shift;
+		if ( !$txt ) {
+			return '';
+		}
+		
+		return
+		$txt	=~ s/^\s+|\s+$//g;
+	}
+	
 	# Base64 encode binary or text data
 	sub base64_encode {
 		my $value	= shift;
