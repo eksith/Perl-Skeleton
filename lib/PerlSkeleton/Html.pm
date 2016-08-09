@@ -10,6 +10,7 @@ use Unicode::Normalize;					# Needed for URL slugs and special characters
 BEGIN {
 use lib '.';
 use PerlSkeleton::Config;
+use PerlSkeleton::Util;
 
 # Aliasing
 *config:: 	= *PerlSkeleton::Config::;
